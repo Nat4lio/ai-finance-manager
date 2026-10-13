@@ -1,0 +1,45 @@
+CREATE TABLE IF NOT EXISTS financial_account (
+    id UUID PRIMARY KEY,
+    user_id UUID NOT NULL,
+    name VARCHAR(160) NOT NULL,
+    account_type VARCHAR(32) NOT NULL,
+    currency CHAR(3) NOT NULL DEFAULT 'EUR',
+    current_balance NUMERIC(19,4),
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS category (
+    id UUID PRIMARY KEY,
+    user_id UUID,
+    name VARCHAR(80) NOT NULL,
+    kind VARCHAR(16) NOT NULL,
+    color VARCHAR(16),
+    is_system BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS financial_transaction (
+    id UUID PRIMARY KEY,
+    user_id UUID NOT NULL,
+    account_id UUID NOT NULL,
+    category_id UUID,
+    source VARCHAR(16) NOT NULL DEFAULT 'MANUAL',
+    description VARCHAR(500) NOT NULL,
+    merchant_name VARCHAR(200),
+    amount NUMERIC(19,4) NOT NULL,
+    currency CHAR(3) NOT NULL DEFAULT 'EUR',
+    booked_at DATE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS savings_goal (
+    id UUID PRIMARY KEY,
+    user_id UUID NOT NULL,
+    name VARCHAR(120) NOT NULL,
+    target_amount NUMERIC(19,4) NOT NULL,
+    current_amount NUMERIC(19,4) NOT NULL DEFAULT 0,
+    currency CHAR(3) NOT NULL DEFAULT 'EUR',
+    target_date DATE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="pt-PT">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0a0b14">
+  <meta name="description" content="Painel pessoal de finanças.">
+  <title>Vault — Finanças pessoais</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/assets/app.css">
+  <script src="/assets/app.js" defer></script>
+</head>
+<body>
+  <main id="auth-screen" class="auth-screen">
+    <section class="auth-card" aria-labelledby="auth-title">
+      <a class="brand auth-brand" href="/" aria-label="Vault, início">
+        <span class="brand-mark">V</span><span>vault</span>
+      </a>
+      <p class="eyebrow">AS TUAS FINANÇAS, COM CLAREZA</p>
+      <h1 id="auth-title">Bem-vindo de volta</h1>
+      <p class="auth-intro">Entra para acompanhar o teu dinheiro num só lugar.</p>
+      <form id="login-form" class="auth-form">
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" autocomplete="username" required value="demo@example.com">
+        <label for="password">Palavra-passe</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required value="Demo123!Finance">
+        <p id="auth-error" class="form-error" role="alert" hidden></p>
+        <button class="button button-primary auth-submit" type="submit">Entrar no painel <span aria-hidden="true">→</span></button>
+      </form>
+      <button id="demo-login" class="button button-quiet demo-button" type="button">Entrar como utilizador de demonstração</button>
+      <p class="auth-footnote">Os dados apresentados são fictícios e destinam-se apenas a demonstração.</p>
+    </section>
+  </main>
+
+  <div id="app-shell" class="app-shell" hidden>
+    <aside class="sidebar">
+      <a class="brand" href="/" aria-label="Vault, painel">
+        <span class="brand-mark">V</span><span>vault</span>
+      </a>
+      <p class="nav-caption">MENU</p>
+      <nav class="side-nav" aria-label="Navegação principal">
+        <button class="nav-link is-active" type="button" data-view="overview"><span class="nav-icon">▦</span>Visão geral</button>
+        <button class="nav-link" type="button" data-view="transactions"><span class="nav-icon">↕</span>Transações</button>
+        <button class="nav-link" type="button" data-view="goals"><span class="nav-icon">◎</span>Objetivos</button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="demo-label"><span class="status-dot"></span> MODO DE DEMONSTRAÇÃO</div>
+        <button id="logout" class="nav-link logout-button" type="button"><span class="nav-icon">↪</span>Terminar sessão</button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow top-eyebrow">O TEU ESPAÇO FINANCEIRO</p>
+          <h1 id="greeting">Bom dia 👋</h1>
+        </div>
+        <div class="topbar-meta">
+          <span class="period-pill"><span class="status-dot"></span>Últimos 6 meses</span>
+          <span id="avatar" class="avatar" aria-label="Utilizador">A</span>
+        </div>
+      </header>
+
+      <div id="dashboard-error" class="notice notice-error" role="alert" hidden></div>
+      <div id="loading" class="loading-state"><span class="spinner"></span>A carregar os teus dados…</div>
+      <div id="dashboard-content" hidden>
+        <section class="metrics-grid" aria-label="Resumo financeiro">
+          <article class="metric-card metric-highlight">
+            <span class="metric-label">PATRIMÓNIO TOTAL</span>
+            <strong id="net-worth" class="metric-value">—</strong>
+            <span class="metric-note"><span class="metric-check">↗</span> Saldo das tuas contas</span>
+          </article>
+          <article class="metric-card">
+            <span class="metric-label">RENDIMENTOS DO MÊS</span>
+            <strong id="monthly-income" class="metric-value">—</strong>
+            <span class="metric-note"><span class="metric-check">↗</span> Total recebido este mês</span>
+          </article>
+          <article class="metric-card">
+            <span class="metric-label">DESPESAS DO MÊS</span>
+            <strong id="total-spent" class="metric-value">—</strong>
+            <span class="metric-note muted-note">Total gasto este mês</span>
+          </article>
+          <article class="metric-card">
+            <span class="metric-label">TAXA DE POUPANÇA</span>
+            <strong id="savings-rate" class="metric-value">—</strong>
+            <span id="savings-target" class="metric-note"><span class="metric-check">↗</span> Objetivo mensal</span>
+          </article>
+        </section>
+
+        <section class="overview-grid view-panel" data-panel="overview">
+          <article class="panel cashflow-panel">
+            <div class="panel-heading">
+              <div><h2>Fluxo de caixa</h2><p>Rendimentos e despesas ao longo do tempo</p></div>
+              <div class="chart-legend"><span><i class="legend-dot income-dot"></i>Rendimentos</span><span><i class="legend-dot expense-dot"></i>Despesas</span></div>
+            </div>
+            <div class="chart-wrap">
+              <svg id="cashflow-chart" class="cashflow-chart" viewBox="0 0 720 235" role="img" aria-label="Gráfico mensal de rendimentos e despesas"></svg>
+            </div>
+          </article>
+          <article class="panel spending-panel">
+            <div class="panel-heading">
+              <div><h2>Despesas</h2><p>Distribuição por categoria neste mês</p></div>
+            </div>
+            <div class="spending-chart-row">
+              <div id="spending-chart" class="donut-chart" role="img" aria-label="Distribuição das despesas">
+                <div class="donut-hole"><strong id="donut-total">—</strong><span>este mês</span></div>
+              </div>
+            </div>
+            <div id="category-legend" class="category-legend"></div>
+          </article>
+          <article class="panel transactions-preview">
+            <div class="panel-heading">
+              <div><h2>Transações recentes</h2><p>Movimentos guardados na tua conta</p></div>
+              <button class="text-button" type="button" data-view="transactions">Ver todas <span aria-hidden="true">→</span></button>
+            </div>
+            <div id="recent-transactions" class="transaction-list"></div>
+          </article>
+          <article class="panel goals-preview">
+            <div class="panel-heading">
+              <div><h2>Objetivos de poupança</h2><p>Pequenos passos, grandes planos</p></div>
+              <button class="text-button" type="button" data-view="goals">Ver objetivos <span aria-hidden="true">→</span></button>
+            </div>
+            <div id="goal-list-preview" class="goal-list"></div>
+          </article>
+        </section>
+
+        <section class="panel full-panel view-panel" data-panel="transactions" hidden>
+          <div class="panel-heading"><div><h2>As tuas transações</h2><p>Os movimentos registados na demonstração</p></div></div>
+          <div id="all-transactions" class="transaction-list transaction-list-full"></div>
+        </section>
+        <section class="panel full-panel view-panel" data-panel="goals" hidden>
+          <div class="panel-heading"><div><h2>Objetivos de poupança</h2><p>Acompanha o progresso de cada objetivo</p></div></div>
+          <div id="all-goals" class="goal-list goal-list-full"></div>
+        </section>
+        <footer class="app-footer">Demonstração — valores fictícios armazenados localmente na base de dados.</footer>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

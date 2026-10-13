@@ -1,6 +1,6 @@
 # AI Finance Manager
 
-Personal finance application built with Java 21, Spring Boot, PostgreSQL and Flyway. This is the initial backend foundation.
+Personal finance application built with Java 21, Spring Boot and PostgreSQL. It includes a responsive dashboard, authentication and a local demonstration account with sample financial data.
 
 ## Requirements
 - JDK 21
@@ -45,7 +45,7 @@ Actuator health endpoint:
 curl http://localhost:8080/actuator/health
 ```
 
-Flyway applies `V1__initial_schema.sql` automatically. Hibernate validates the schema against mapped entities; as the first slice currently has no JPA entities, the database migration is the starting schema for the next implementation step.
+Flyway applies the PostgreSQL schema migrations automatically. Hibernate validates the mapped `AppUser` entity against the migrated schema at startup; the remaining finance tables are groundwork for upcoming modules.
 
 ## Important security notes
 - The PostgreSQL password in `docker-compose.yml` is for local development only. Do not use it in production.
@@ -58,8 +58,130 @@ Flyway applies `V1__initial_schema.sql` automatically. Hibernate validates the s
 
 ## Planned modules
 - `auth`: registration, login, password hashing and JWT (initial slice implemented)
-- `accounts`: financial accounts and bank connections
-- `transactions`: normalized transaction model, search, deduplication and categorization
+- `accounts`: financial accounts and balances for the dashboard (bank connections planned)
+- `transactions`: transaction history and dashboard spending summaries (management, search and categorization planned)
 - `banking`: provider adapter and consent/synchronization flows
 - `analytics`: monthly summaries, budgets and savings rate
 - `ai`: transaction categorization and evidence-based financial Q&A
+
+## Tutorial rápido (Windows / PowerShell)
+
+O projeto inclui um **dashboard web responsivo**. A interface e a API são servidas pela mesma aplicação Spring Boot. O modo de demonstração cria um utilizador e movimentos fictícios no PostgreSQL; os valores do painel são lidos da base de dados.
+
+### 1. Pré-requisitos
+
+- JDK 21
+- Maven 3.9+
+- Docker Desktop em execução
+
+Confirma as ferramentas no PowerShell:
+
+```powershell
+java -version
+mvn --version
+docker info
+```
+
+Se `docker` não for reconhecido depois da instalação, fecha e volta a abrir o terminal/VS Code para atualizar o `PATH`. Confirma que o Docker Desktop está iniciado e que `docker info` consegue comunicar com o daemon.
+
+### 2. Iniciar a base de dados
+
+Na pasta principal do repositório:
+
+```powershell
+docker compose up -d postgres
+docker compose ps
+```
+
+Espera até o serviço `postgres` aparecer como saudável antes de iniciar a API.
+
+### 3. Criar a chave JWT e iniciar a API
+
+Na mesma janela do PowerShell, cria uma chave de desenvolvimento aleatória e inicia o backend:
+
+```powershell
+$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+$bytes = New-Object byte[] 32
+$rng.GetBytes($bytes)
+$env:JWT_SECRET_BASE64 = [Convert]::ToBase64String($bytes)
+$env:DEMO_MODE = "true"
+$rng.Dispose()
+
+Set-Location .\backend
+mvn spring-boot:run
+```
+
+Mantém esta janela aberta. A aplicação fica disponível em `http://localhost:8080`. A chave só existe nesta janela do PowerShell; gera outra se abrires uma janela nova. `DEMO_MODE=true` cria os dados de exemplo se ainda não existirem. Deixa-o desligado fora do desenvolvimento: a conta de demonstração é pública e a palavra-passe estática não é segura para produção.
+
+### 4. Abrir o dashboard
+
+Abre `http://localhost:8080` no browser. Inicia sessão com:
+
+- **Email:** `demo@example.com`
+- **Palavra-passe:** `Demo123!Finance`
+
+O painel mostra património, rendimentos e despesas do mês, fluxo de caixa dos últimos seis meses, despesas por categoria, transações recentes e objetivos de poupança. Os valores fictícios são persistidos em PostgreSQL e a API só devolve os dados do utilizador autenticado.
+
+Para confirmar o estado técnico do serviço, abre `http://localhost:8080/api/v1/health` no browser ou executa `Invoke-RestMethod http://localhost:8080/actuator/health` numa segunda janela do PowerShell.
+
+### 5. Experimentar registo e login
+
+Na segunda janela do PowerShell, cria uma conta de teste:
+
+```powershell
+$body = @{
+    email = "teste@example.com"
+    password = "Uma-password-segura-123"
+    displayName = "Conta de teste"
+} | ConvertTo-Json
+
+$registo = Invoke-RestMethod `
+    -Method Post `
+    -Uri http://localhost:8080/api/v1/auth/register `
+    -ContentType "application/json" `
+    -Body $body
+
+$registo
+```
+
+O resultado inclui `accessToken`, `tokenType` (`Bearer`) e `expiresIn` (segundos). Também podes iniciar sessão na interface web com esta conta. Contas normais começam sem dados financeiros; a conta `demo@example.com` é preenchida apenas quando `DEMO_MODE=true`.
+
+```powershell
+$loginBody = @{
+    email = "teste@example.com"
+    password = "Uma-password-segura-123"
+} | ConvertTo-Json
+
+$login = Invoke-RestMethod `
+    -Method Post `
+    -Uri http://localhost:8080/api/v1/auth/login `
+    -ContentType "application/json" `
+    -Body $loginBody
+
+$login
+```
+
+As rotas da API que exigem autenticação aceitam o token no cabeçalho `Authorization: Bearer <token>`. Por exemplo, o endpoint Actuator `info`:
+
+```powershell
+Invoke-RestMethod `
+    -Uri http://localhost:8080/actuator/info `
+    -Headers @{ Authorization = "Bearer $($login.accessToken)" }
+```
+
+### 6. Executar os testes
+
+Os testes usam uma base H2 descartável e não precisam do Docker nem da base PostgreSQL:
+
+```powershell
+Set-Location .\backend
+mvn test
+```
+
+Para parar a API, usa `Ctrl+C` na janela onde está a correr. Para parar o PostgreSQL sem apagar os dados:
+
+```powershell
+docker compose down
+```
+
+`docker compose down -v` também apaga o volume e **elimina todos os dados locais** da base de dados.

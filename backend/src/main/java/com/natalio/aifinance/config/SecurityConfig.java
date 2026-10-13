@@ -24,7 +24,8 @@ public class SecurityConfig {
                 .referrerPolicy(policy -> policy.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
                 .httpStrictTransportSecurity(hsts -> hsts.includeSubDomains(true).maxAgeInSeconds(31536000)))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/actuator/health", "/api/v1/health", "/api/v1/auth/register", "/api/v1/auth/login").permitAll()
+                .requestMatchers("/", "/index.html", "/assets/**", "/favicon.ico",
+                    "/actuator/health", "/api/v1/health", "/api/v1/auth/register", "/api/v1/auth/login").permitAll()
                 .anyRequest().authenticated())
             .oauth2ResourceServer(resourceServer -> resourceServer.jwt(Customizer.withDefaults()))
             .build();
