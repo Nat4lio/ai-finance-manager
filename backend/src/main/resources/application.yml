@@ -13,6 +13,12 @@ spring:
     enabled: true
   jackson:
     time-zone: UTC
+app:
+  security:
+    jwt:
+      secret-base64: ${JWT_SECRET_BASE64}
+      issuer: ai-finance-manager
+      expiration: PT15M
 server:
   port: 8080
 management:
