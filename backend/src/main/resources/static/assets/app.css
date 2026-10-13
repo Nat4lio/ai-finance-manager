@@ -102,11 +102,14 @@ h1, h2, p { margin-top: 0; }
 .text-button { padding: 2px 0; border: 0; background: none; color: var(--green); cursor: pointer; font-size: 10px; white-space: nowrap; }
 .text-button:hover { color: #85f4d2; }
 .transaction-list { display: grid; margin-top: 12px; }
-.transaction-row { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid #202133; }
+.transaction-row { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid #202133; }
 .transaction-icon { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 9px; background: #1c1d2c; color: #b0b1c2; font-size: 13px; }
 .transaction-description { overflow: hidden; color: #e6e7ef; font-size: 10px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .transaction-meta { margin-top: 4px; color: var(--muted); font-size: 9px; }
 .transaction-amount { font-size: 10px; font-weight: 700; white-space: nowrap; }
+.transaction-delete { padding: 6px 8px; border: 1px solid #fb718544; border-radius: 7px; background: #291820; color: #ffc4cd; cursor: pointer; font-size: 9px; white-space: nowrap; }
+.transaction-delete:hover { border-color: #fb7185aa; background: #3a202a; }
+.transaction-delete:disabled { cursor: wait; opacity: .6; }
 .positive { color: var(--green); }.negative { color: #ff7388; }
 .goal-list { display: grid; gap: 13px; margin-top: 15px; }
 .goal-item { display: grid; gap: 7px; }

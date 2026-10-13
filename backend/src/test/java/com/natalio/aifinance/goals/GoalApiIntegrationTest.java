@@ -131,6 +131,99 @@ class GoalApiIntegrationTest {
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
             .andExpect(status().isNoContent());
         assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM savings_goal WHERE id = ?", Integer.class, goalId));
+        assertEquals(0, jdbc.queryForObject(
+            "SELECT current_balance FROM financial_account WHERE id = ?",
+            BigDecimal.class,
+            accountId
+        ).compareTo(BigDecimal.ZERO));
+        assertEquals(3, jdbc.queryForObject(
+            "SELECT COUNT(*) FROM financial_transaction WHERE user_id = ?",
+            Integer.class,
+            ownerId
+        ));
+        assertEquals(0, jdbc.queryForObject(
+            "SELECT SUM(amount) FROM financial_transaction WHERE user_id = ?",
+            BigDecimal.class,
+            ownerId
+        ).compareTo(BigDecimal.ZERO));
+    }
+
+    @Test
+    void deletingGoalMovementRestoresGoalAndAccountAndRejectsNegativeGoalBalance() throws Exception {
+        String token = registerAndGetToken("goal-movements@example.com");
+        MvcResult createResult = mockMvc.perform(post("/api/v1/goals")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(goalJson("Computador", "1200")))
+            .andExpect(status().isCreated())
+            .andReturn();
+        UUID goalId = UUID.fromString(objectMapper.readTree(createResult.getResponse().getContentAsString())
+            .get("id").asText());
+
+        mockMvc.perform(post("/api/v1/goals/{goalId}/movements", goalId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"kind":"ADD","amount":75.00}
+                    """))
+            .andExpect(status().isOk());
+
+        UUID userId = users.findByEmailIgnoreCase("goal-movements@example.com").orElseThrow().getId();
+        UUID contributionId = jdbc.queryForObject(
+            "SELECT id FROM financial_transaction WHERE user_id = ?",
+            UUID.class,
+            userId
+        );
+
+        mockMvc.perform(post("/api/v1/goals/{goalId}/movements", goalId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"kind":"WITHDRAW","amount":25.00}
+                    """))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(delete("/api/v1/transactions/{transactionId}", contributionId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+            .andExpect(status().isConflict());
+        assertEquals(0, jdbc.queryForObject(
+            "SELECT current_amount FROM savings_goal WHERE id = ?",
+            BigDecimal.class,
+            goalId
+        ).compareTo(new BigDecimal("50.00")));
+        assertEquals(2, jdbc.queryForObject(
+            "SELECT COUNT(*) FROM financial_transaction WHERE user_id = ?",
+            Integer.class,
+            userId
+        ));
+
+        UUID withdrawalId = jdbc.queryForObject(
+            "SELECT id FROM financial_transaction WHERE user_id = ? AND amount > 0",
+            UUID.class,
+            userId
+        );
+        mockMvc.perform(delete("/api/v1/transactions/{transactionId}", withdrawalId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+            .andExpect(status().isNoContent());
+        assertEquals(0, jdbc.queryForObject(
+            "SELECT current_amount FROM savings_goal WHERE id = ?",
+            BigDecimal.class,
+            goalId
+        ).compareTo(new BigDecimal("75.00")));
+
+        mockMvc.perform(delete("/api/v1/transactions/{transactionId}", contributionId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+            .andExpect(status().isNoContent());
+        assertEquals(0, jdbc.queryForObject(
+            "SELECT current_amount FROM savings_goal WHERE id = ?",
+            BigDecimal.class,
+            goalId
+        ).compareTo(BigDecimal.ZERO));
+        assertEquals(0, jdbc.queryForObject(
+            "SELECT current_balance FROM financial_account WHERE user_id = ?",
+            BigDecimal.class,
+            userId
+        ).compareTo(BigDecimal.ZERO));
     }
 
     private String registerAndGetToken(String email) throws Exception {

@@ -36,6 +36,7 @@ public record DashboardResponse(
     }
 
     public record TransactionItem(
+        UUID id,
         String description,
         String merchant,
         String category,

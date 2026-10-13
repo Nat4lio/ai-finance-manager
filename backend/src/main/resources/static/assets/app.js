@@ -300,10 +300,34 @@ function renderTransactions(transactions, selector, limit) {
     const amount = Number(transaction.amount);
     const formatted = currency(Math.abs(amount), transaction.currency);
     const amountNode = element("span", `transaction-amount ${amount >= 0 ? "positive" : "negative"}`, `${amount >= 0 ? "+" : "−"}${formatted}`);
-    row.append(icon, detail, amountNode);
+    const deleteButton = element("button", "transaction-delete", "Eliminar");
+    deleteButton.type = "button";
+    deleteButton.dataset.transactionId = transaction.id;
+    deleteButton.dataset.transactionDescription = transaction.description;
+    deleteButton.setAttribute("aria-label", `Eliminar transação: ${transaction.description}`);
+    row.append(icon, detail, amountNode, deleteButton);
     list.append(row);
   });
   if (!rows.length) list.append(element("p", "transaction-meta", "Ainda não há transações registadas."));
+}
+
+for (const listSelector of ["#recent-transactions", "#all-transactions"]) {
+  document.querySelector(listSelector).addEventListener("click", async event => {
+    const button = event.target.closest("button[data-transaction-id]");
+    if (!button) return;
+    const { transactionId, transactionDescription } = button.dataset;
+    if (!window.confirm(`Queres eliminar a transação "${transactionDescription}"? O saldo da conta e, quando aplicável, o objetivo serão corrigidos.`)) return;
+    button.disabled = true;
+    try {
+      await request(`/api/v1/transactions/${encodeURIComponent(transactionId)}`, { method: "DELETE" });
+      await loadDashboard();
+    } catch (failure) {
+      dashboardError.textContent = failure.message;
+      dashboardError.hidden = false;
+    } finally {
+      button.disabled = false;
+    }
+  });
 }
 
 function renderGoals(goals, selector, limit, code) {

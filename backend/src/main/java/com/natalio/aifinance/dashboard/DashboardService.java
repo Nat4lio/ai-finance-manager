@@ -143,7 +143,7 @@ public class DashboardService {
                 .divide(periodTotals.income, 1, RoundingMode.HALF_UP);
 
         List<TransactionItem> transactions = jdbc.query("""
-                SELECT t.description, t.merchant_name, c.name AS category, c.kind,
+                SELECT t.id, t.description, t.merchant_name, c.name AS category, c.kind,
                        t.amount, rtrim(t.currency) AS currency, t.booked_at
                 FROM financial_transaction t
                 LEFT JOIN category c ON c.id = t.category_id AND (c.user_id = t.user_id OR c.user_id IS NULL)
@@ -152,6 +152,7 @@ public class DashboardService {
                 LIMIT 50
                 """,
             (result, rowNum) -> new TransactionItem(
+                result.getObject("id", UUID.class),
                 result.getString("description"),
                 result.getString("merchant_name"),
                 result.getString("category"),

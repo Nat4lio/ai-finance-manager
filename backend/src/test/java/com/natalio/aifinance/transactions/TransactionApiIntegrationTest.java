@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -126,6 +127,92 @@ class TransactionApiIntegrationTest {
             "SELECT COUNT(*) FROM financial_account WHERE user_id = ?",
             Integer.class,
             secondUserId
+        ));
+    }
+
+    @Test
+    void deletingTransactionReversesAccountBalanceAndIsRestrictedToItsOwner() throws Exception {
+        String ownerToken = registerAndGetToken("transaction-owner@example.com");
+        String otherToken = registerAndGetToken("transaction-other@example.com");
+
+        MvcResult incomeResult = mockMvc.perform(post("/api/v1/transactions")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(transactionJson(null, "INCOME", "Receita temporária", "Salário", "100.00")))
+            .andExpect(status().isCreated())
+            .andReturn();
+        UUID incomeId = UUID.fromString(objectMapper.readTree(incomeResult.getResponse().getContentAsString())
+            .get("id").asText());
+
+        UUID userId = users.findByEmailIgnoreCase("transaction-owner@example.com").orElseThrow().getId();
+        UUID accountId = jdbc.queryForObject(
+            "SELECT id FROM financial_account WHERE user_id = ?",
+            UUID.class,
+            userId
+        );
+        MvcResult expenseResult = mockMvc.perform(post("/api/v1/transactions")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(transactionJson(accountId, "EXPENSE", "Despesa temporária", "Lazer", "20.00")))
+            .andExpect(status().isCreated())
+            .andReturn();
+        UUID expenseId = UUID.fromString(objectMapper.readTree(expenseResult.getResponse().getContentAsString())
+            .get("id").asText());
+
+        mockMvc.perform(delete("/api/v1/transactions/{transactionId}", incomeId))
+            .andExpect(status().isUnauthorized());
+        mockMvc.perform(delete("/api/v1/transactions/{transactionId}", incomeId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + otherToken))
+            .andExpect(status().isNotFound());
+
+        assertEquals(0, jdbc.queryForObject(
+            "SELECT current_balance FROM financial_account WHERE id = ?",
+            BigDecimal.class,
+            accountId
+        ).compareTo(new BigDecimal("80.00")));
+
+        mockMvc.perform(delete("/api/v1/transactions/{transactionId}", incomeId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+            .andExpect(status().isNoContent());
+
+        assertEquals(0, jdbc.queryForObject(
+            "SELECT current_balance FROM financial_account WHERE id = ?",
+            BigDecimal.class,
+            accountId
+        ).compareTo(new BigDecimal("-20.00")));
+        assertEquals(0, jdbc.queryForObject(
+            "SELECT COUNT(*) FROM financial_transaction WHERE id = ?",
+            Integer.class,
+            incomeId
+        ));
+
+        String today = LocalDate.now(ZoneOffset.UTC).toString();
+        MvcResult dashboardResult = mockMvc.perform(get("/api/v1/dashboard")
+                .queryParam("from", today)
+                .queryParam("to", today)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+            .andExpect(status().isOk())
+            .andReturn();
+        JsonNode dashboard = objectMapper.readTree(dashboardResult.getResponse().getContentAsString());
+        assertEquals(1, dashboard.get("transactions").size());
+        assertEquals(expenseId.toString(), dashboard.at("/transactions/0/id").asText());
+
+        mockMvc.perform(delete("/api/v1/transactions/{transactionId}", incomeId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+            .andExpect(status().isNotFound());
+        mockMvc.perform(delete("/api/v1/transactions/{transactionId}", expenseId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken))
+            .andExpect(status().isNoContent());
+
+        assertEquals(0, jdbc.queryForObject(
+            "SELECT current_balance FROM financial_account WHERE id = ?",
+            BigDecimal.class,
+            accountId
+        ).compareTo(BigDecimal.ZERO));
+        assertEquals(0, jdbc.queryForObject(
+            "SELECT COUNT(*) FROM financial_transaction WHERE user_id = ?",
+            Integer.class,
+            userId
         ));
     }
 

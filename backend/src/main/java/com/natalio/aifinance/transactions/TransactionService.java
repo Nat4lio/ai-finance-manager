@@ -18,6 +18,19 @@ public class TransactionService {
 
     @Transactional
     public TransactionCreatedResponse create(UUID userId, CreateTransactionRequest request) {
+        return create(userId, request, null);
+    }
+
+    @Transactional
+    public TransactionCreatedResponse createGoalMovement(
+        UUID userId,
+        UUID goalId,
+        CreateTransactionRequest request
+    ) {
+        return create(userId, request, goalId);
+    }
+
+    private TransactionCreatedResponse create(UUID userId, CreateTransactionRequest request, UUID goalId) {
         AccountRow account;
         if (request.accountId() == null) {
             account = jdbc.query("""
@@ -74,8 +87,8 @@ public class TransactionService {
         UUID transactionId = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO financial_transaction
-                    (id, user_id, account_id, category_id, source, description, amount, currency, booked_at)
-                VALUES (?, ?, ?, ?, 'MANUAL', ?, ?, ?, ?)
+                    (id, user_id, account_id, category_id, source, description, amount, currency, booked_at, savings_goal_id)
+                VALUES (?, ?, ?, ?, 'MANUAL', ?, ?, ?, ?, ?)
                 """,
             transactionId,
             userId,
@@ -84,7 +97,8 @@ public class TransactionService {
             request.description().trim(),
             signedAmount,
             account.currency,
-            request.date()
+            request.date(),
+            goalId
         );
 
         jdbc.update("""
@@ -102,6 +116,62 @@ public class TransactionService {
             account.currency,
             request.date()
         );
+    }
+
+    @Transactional
+    public void delete(UUID userId, UUID transactionId) {
+        TransactionRow transaction = jdbc.query("""
+                SELECT account_id, amount, savings_goal_id
+                FROM financial_transaction
+                WHERE id = ? AND user_id = ?
+                FOR UPDATE
+                """,
+            (result, rowNum) -> new TransactionRow(
+                result.getObject("account_id", UUID.class),
+                result.getBigDecimal("amount"),
+                result.getObject("savings_goal_id", UUID.class)
+            ),
+            transactionId,
+            userId
+        ).stream().findFirst().orElseThrow(() ->
+            new ResponseStatusException(HttpStatus.NOT_FOUND, "Transaction not found"));
+
+        if (transaction.goalId != null) {
+            BigDecimal restoredGoalAmount = jdbc.query("""
+                    SELECT current_amount
+                    FROM savings_goal
+                    WHERE id = ? AND user_id = ?
+                    FOR UPDATE
+                    """,
+                (result, rowNum) -> result.getBigDecimal("current_amount"),
+                transaction.goalId,
+                userId
+            ).stream().findFirst().map(amount -> amount.add(transaction.amount)).orElse(null);
+            if (restoredGoalAmount != null) {
+                if (restoredGoalAmount.signum() < 0) {
+                    throw new ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "This transaction cannot be deleted because the goal balance has already been used"
+                    );
+                }
+                jdbc.update("""
+                        UPDATE savings_goal
+                        SET current_amount = ?, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = ? AND user_id = ?
+                        """, restoredGoalAmount, transaction.goalId, userId);
+            }
+        }
+
+        int updatedAccounts = jdbc.update("""
+                UPDATE financial_account
+                SET current_balance = COALESCE(current_balance, 0) - ?, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ? AND user_id = ?
+                """, transaction.amount, transaction.accountId, userId);
+        if (updatedAccounts != 1) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Transaction account could not be updated");
+        }
+
+        jdbc.update("DELETE FROM financial_transaction WHERE id = ? AND user_id = ?", transactionId, userId);
     }
 
     private AccountRow createDefaultAccount(UUID userId) {
@@ -123,5 +193,8 @@ public class TransactionService {
     }
 
     private record AccountRow(UUID id, String currency) {
+    }
+
+    private record TransactionRow(UUID accountId, BigDecimal amount, UUID goalId) {
     }
 }

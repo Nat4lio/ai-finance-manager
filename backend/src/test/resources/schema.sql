@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS financial_transaction (
     amount NUMERIC(19,4) NOT NULL,
     currency CHAR(3) NOT NULL DEFAULT 'EUR',
     booked_at DATE NOT NULL,
+    savings_goal_id UUID,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

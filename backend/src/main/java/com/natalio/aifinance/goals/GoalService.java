@@ -46,30 +46,24 @@ public class GoalService {
 
     @Transactional
     public void delete(UUID userId, UUID goalId) {
-        int deleted = jdbc.update("DELETE FROM savings_goal WHERE id = ? AND user_id = ?", goalId, userId);
-        if (deleted == 0) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Savings goal not found");
+        GoalRow goal = findGoal(userId, goalId);
+        if (goal.currentAmount.signum() > 0) {
+            AccountRow account = findOrCreateAccount(userId, goal.currency);
+            transactionService.create(userId, new CreateTransactionRequest(
+                account.id,
+                TransactionKind.INCOME,
+                "Devolução do objetivo: " + goal.name,
+                "Devolução de poupança",
+                goal.currentAmount,
+                LocalDate.now(ZoneOffset.UTC)
+            ));
         }
+        jdbc.update("DELETE FROM savings_goal WHERE id = ? AND user_id = ?", goalId, userId);
     }
 
     @Transactional
     public SavingsGoal moveMoney(UUID userId, UUID goalId, GoalMovementRequest request) {
-        GoalRow goal = jdbc.query("""
-                SELECT name, current_amount, target_amount, rtrim(currency) AS currency, target_date
-                FROM savings_goal
-                WHERE id = ? AND user_id = ?
-                FOR UPDATE
-                """,
-            (result, rowNum) -> new GoalRow(
-                result.getString("name"),
-                result.getBigDecimal("current_amount"),
-                result.getBigDecimal("target_amount"),
-                result.getString("currency"),
-                result.getObject("target_date", LocalDate.class)
-            ),
-            goalId, userId
-        ).stream().findFirst().orElseThrow(() ->
-            new ResponseStatusException(HttpStatus.NOT_FOUND, "Savings goal not found"));
+        GoalRow goal = findGoal(userId, goalId);
 
         boolean adding = request.kind() == GoalMovementKind.ADD;
         if (!adding && request.amount().compareTo(goal.currentAmount) > 0) {
@@ -86,7 +80,7 @@ public class GoalService {
         String category = adding ? "Poupança" : "Levantamento de poupança";
         String description = (adding ? "Contribuição para objetivo: " : "Levantamento do objetivo: ") + goal.name;
 
-        transactionService.create(userId, new CreateTransactionRequest(
+        transactionService.createGoalMovement(userId, goalId, new CreateTransactionRequest(
             account.id,
             transactionKind,
             description,
@@ -102,6 +96,25 @@ public class GoalService {
                 """, updatedAmount, goalId, userId);
 
         return new SavingsGoal(goalId, goal.name, updatedAmount, goal.targetAmount, goal.currency, goal.targetDate);
+    }
+
+    private GoalRow findGoal(UUID userId, UUID goalId) {
+        return jdbc.query("""
+                SELECT name, current_amount, target_amount, rtrim(currency) AS currency, target_date
+                FROM savings_goal
+                WHERE id = ? AND user_id = ?
+                FOR UPDATE
+                """,
+            (result, rowNum) -> new GoalRow(
+                result.getString("name"),
+                result.getBigDecimal("current_amount"),
+                result.getBigDecimal("target_amount"),
+                result.getString("currency"),
+                result.getObject("target_date", LocalDate.class)
+            ),
+            goalId, userId
+        ).stream().findFirst().orElseThrow(() ->
+            new ResponseStatusException(HttpStatus.NOT_FOUND, "Savings goal not found"));
     }
 
     private AccountRow findOrCreateAccount(UUID userId, String currency) {

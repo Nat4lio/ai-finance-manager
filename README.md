@@ -128,6 +128,8 @@ O seletor no topo do dashboard permite ver o último mês, os últimos 3 ou 6 me
 
 Em **Objetivos**, carrega em **Criar objetivo** para definir o nome, o valor pretendido e, opcionalmente, uma data. **Adicionar dinheiro** aumenta o progresso e regista uma despesa na conta; **Retirar dinheiro** reduz o progresso e regista uma receita. Não é possível retirar mais do que o valor já guardado. **Eliminar** remove o objetivo, mas mantém no histórico da conta os movimentos que já foram registados.
 
+Na lista de transações, **Eliminar** apaga o movimento e corrige o saldo da conta. Se o movimento fizer parte de um objetivo, o progresso desse objetivo também é corrigido; uma contribuição não pode ser eliminada se o dinheiro já tiver sido retirado e o objetivo ficar com saldo negativo. Ao eliminar um objetivo com dinheiro guardado, a aplicação regista uma receita de devolução à conta antes de remover o objetivo, mantendo o histórico financeiro auditável.
+
 Para confirmar o estado técnico do serviço, abre `http://localhost:8080/api/v1/health` no browser ou executa `Invoke-RestMethod http://localhost:8080/actuator/health` numa segunda janela do PowerShell.
 
 ### 5. Experimentar registo e login
