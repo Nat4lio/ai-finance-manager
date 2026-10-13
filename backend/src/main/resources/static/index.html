@@ -56,7 +56,29 @@
           <h1 id="greeting">Bom dia 👋</h1>
         </div>
         <div class="topbar-meta">
-          <span class="period-pill"><span class="status-dot"></span>Últimos 6 meses</span>
+          <div class="transaction-actions" aria-label="Adicionar movimento">
+            <button id="add-income" class="button button-income" type="button">+ Receitas</button>
+            <button id="add-expense" class="button button-expense" type="button">+ Despesas</button>
+          </div>
+          <div class="period-controls">
+            <label class="period-select-wrap">
+              <span class="sr-only">Intervalo dos dados do painel</span>
+              <select id="period-select" class="period-select">
+                <option value="1m">Último mês</option>
+                <option value="3m">Últimos 3 meses</option>
+                <option value="6m" selected>Últimos 6 meses</option>
+                <option value="1y">Último ano</option>
+                <option value="custom">Datas personalizadas</option>
+              </select>
+            </label>
+            <div id="custom-period-controls" class="custom-period-controls" hidden>
+              <label><span class="sr-only">Data inicial</span><input id="period-from" type="date" required></label>
+              <span aria-hidden="true">—</span>
+              <label><span class="sr-only">Data final</span><input id="period-to" type="date" required></label>
+              <button id="apply-custom-period" class="button button-primary" type="button">Aplicar</button>
+            </div>
+            <p id="custom-period-error" class="period-error" role="alert" hidden></p>
+          </div>
           <span id="avatar" class="avatar" aria-label="Utilizador">A</span>
         </div>
       </header>
@@ -71,14 +93,14 @@
             <span class="metric-note"><span class="metric-check">↗</span> Saldo das tuas contas</span>
           </article>
           <article class="metric-card">
-            <span class="metric-label">RENDIMENTOS DO MÊS</span>
+            <span id="income-period-label" class="metric-label">RENDIMENTOS DO PERÍODO</span>
             <strong id="monthly-income" class="metric-value">—</strong>
-            <span class="metric-note"><span class="metric-check">↗</span> Total recebido este mês</span>
+            <span class="metric-note"><span class="metric-check">↗</span> Total recebido no período</span>
           </article>
           <article class="metric-card">
-            <span class="metric-label">DESPESAS DO MÊS</span>
+            <span id="expenses-period-label" class="metric-label">DESPESAS DO PERÍODO</span>
             <strong id="total-spent" class="metric-value">—</strong>
-            <span class="metric-note muted-note">Total gasto este mês</span>
+            <span class="metric-note muted-note">Total gasto no período</span>
           </article>
           <article class="metric-card">
             <span class="metric-label">TAXA DE POUPANÇA</span>
@@ -99,11 +121,11 @@
           </article>
           <article class="panel spending-panel">
             <div class="panel-heading">
-              <div><h2>Despesas</h2><p>Distribuição por categoria neste mês</p></div>
+              <div><h2>Despesas</h2><p id="spending-period-caption">Distribuição por categoria no período</p></div>
             </div>
             <div class="spending-chart-row">
               <div id="spending-chart" class="donut-chart" role="img" aria-label="Distribuição das despesas">
-                <div class="donut-hole"><strong id="donut-total">—</strong><span>este mês</span></div>
+                <div class="donut-hole"><strong id="donut-total">—</strong><span>no período</span></div>
               </div>
             </div>
             <div id="category-legend" class="category-legend"></div>
@@ -117,24 +139,101 @@
           </article>
           <article class="panel goals-preview">
             <div class="panel-heading">
-              <div><h2>Objetivos de poupança</h2><p>Pequenos passos, grandes planos</p></div>
-              <button class="text-button" type="button" data-view="goals">Ver objetivos <span aria-hidden="true">→</span></button>
+              <div><h2>Objetivos de poupança</h2><p>Cria objetivos e acompanha o seu progresso</p></div>
+              <div class="goal-heading-actions">
+                <button id="create-goal-preview" class="button button-income goal-create-button" type="button">+ Criar</button>
+                <button class="text-button" type="button" data-view="goals">Ver todos <span aria-hidden="true">→</span></button>
+              </div>
             </div>
             <div id="goal-list-preview" class="goal-list"></div>
           </article>
         </section>
 
         <section class="panel full-panel view-panel" data-panel="transactions" hidden>
-          <div class="panel-heading"><div><h2>As tuas transações</h2><p>Os movimentos registados na demonstração</p></div></div>
+          <div class="panel-heading"><div><h2>As tuas transações</h2><p>Os movimentos registados na tua conta</p></div></div>
           <div id="all-transactions" class="transaction-list transaction-list-full"></div>
         </section>
         <section class="panel full-panel view-panel" data-panel="goals" hidden>
-          <div class="panel-heading"><div><h2>Objetivos de poupança</h2><p>Acompanha o progresso de cada objetivo</p></div></div>
+          <div class="panel-heading">
+            <div><h2>Objetivos de poupança</h2><p>Cria objetivos e acompanha o seu progresso</p></div>
+            <button id="create-goal-full" class="button button-income goal-create-button" type="button">+ Criar objetivo</button>
+          </div>
           <div id="all-goals" class="goal-list goal-list-full"></div>
         </section>
         <footer class="app-footer">Demonstração — valores fictícios armazenados localmente na base de dados.</footer>
       </div>
     </main>
   </div>
+
+  <dialog id="transaction-dialog" class="transaction-dialog" aria-labelledby="transaction-dialog-title">
+    <form id="transaction-form" class="transaction-form">
+      <div class="panel-heading">
+        <div>
+          <p id="transaction-kind-label" class="eyebrow">NOVO MOVIMENTO</p>
+          <h2 id="transaction-dialog-title">Adicionar receita</h2>
+          <p>O saldo da conta será atualizado ao guardar.</p>
+        </div>
+        <button id="close-transaction-dialog" class="dialog-close" type="button" aria-label="Fechar">×</button>
+      </div>
+      <label id="transaction-amount-label" for="transaction-amount">Valor (€)</label>
+      <input id="transaction-amount" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0,00" required>
+      <label for="transaction-description">Descrição</label>
+      <input id="transaction-description" name="description" type="text" maxlength="500" placeholder="Ex.: salário de outubro, MB WAY, presente de aniversário" required>
+      <label for="transaction-category">Categoria</label>
+      <input id="transaction-category" name="category" type="text" maxlength="80" list="transaction-category-suggestions" placeholder="Ex.: Salário, Alimentação, Lazer" required>
+      <datalist id="transaction-category-suggestions"></datalist>
+      <label for="transaction-account">Conta</label>
+      <select id="transaction-account" name="accountId" required></select>
+      <label for="transaction-date">Data</label>
+      <input id="transaction-date" name="date" type="date" required>
+      <p id="transaction-form-error" class="form-error" role="alert" hidden></p>
+      <div class="dialog-actions">
+        <button id="cancel-transaction" class="button button-quiet" type="button">Cancelar</button>
+        <button id="save-transaction" class="button button-primary" type="submit">Guardar receita</button>
+      </div>
+    </form>
+  </dialog>
+  <dialog id="goal-dialog" class="transaction-dialog" aria-labelledby="goal-dialog-title">
+    <form id="goal-form" class="transaction-form">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">POUPAR PARA O QUE IMPORTA</p>
+          <h2 id="goal-dialog-title">Criar objetivo</h2>
+          <p>Define o nome, o valor pretendido e uma data opcional.</p>
+        </div>
+        <button id="close-goal-dialog" class="dialog-close" type="button" aria-label="Fechar">×</button>
+      </div>
+      <label for="goal-name">Nome do objetivo</label>
+      <input id="goal-name" name="name" type="text" maxlength="120" placeholder="Ex.: férias, computador" required>
+      <label for="goal-target">Valor pretendido</label>
+      <input id="goal-target" name="targetAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0,00" required>
+      <label for="goal-target-date">Data pretendida (opcional)</label>
+      <input id="goal-target-date" name="targetDate" type="date">
+      <p id="goal-form-error" class="form-error" role="alert" hidden></p>
+      <div class="dialog-actions">
+        <button id="cancel-goal" class="button button-quiet" type="button">Cancelar</button>
+        <button id="save-goal" class="button button-primary" type="submit">Criar objetivo</button>
+      </div>
+    </form>
+  </dialog>
+  <dialog id="goal-movement-dialog" class="transaction-dialog" aria-labelledby="goal-movement-title">
+    <form id="goal-movement-form" class="transaction-form">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">MOVIMENTO DE POUPANÇA</p>
+          <h2 id="goal-movement-title">Adicionar dinheiro</h2>
+          <p id="goal-movement-description"></p>
+        </div>
+        <button id="close-goal-movement-dialog" class="dialog-close" type="button" aria-label="Fechar">×</button>
+      </div>
+      <label id="goal-movement-amount-label" for="goal-movement-amount">Valor (€)</label>
+      <input id="goal-movement-amount" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0,00" required>
+      <p id="goal-movement-error" class="form-error" role="alert" hidden></p>
+      <div class="dialog-actions">
+        <button id="cancel-goal-movement" class="button button-quiet" type="button">Cancelar</button>
+        <button id="save-goal-movement" class="button button-primary" type="submit">Confirmar</button>
+      </div>
+    </form>
+  </dialog>
 </body>
 </html>

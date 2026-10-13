@@ -1,6 +1,6 @@
 # AI Finance Manager
 
-Personal finance application built with Java 21, Spring Boot and PostgreSQL. It includes a responsive dashboard, authentication and a local demonstration account with sample financial data.
+Personal finance application built with Java 21, Spring Boot and PostgreSQL. It includes a responsive dashboard, authentication, manual income and expense entry, and a local demonstration account with sample financial data.
 
 ## Requirements
 - JDK 21
@@ -45,7 +45,7 @@ Actuator health endpoint:
 curl http://localhost:8080/actuator/health
 ```
 
-Flyway applies the PostgreSQL schema migrations automatically. Hibernate validates the mapped `AppUser` entity against the migrated schema at startup; the remaining finance tables are groundwork for upcoming modules.
+Flyway applies the PostgreSQL schema migrations automatically. Hibernate validates the mapped `AppUser` entity against the migrated schema at startup. Authenticated users can record manual income and expenses through the dashboard or `POST /api/v1/transactions`; these entries update the selected account balance and dashboard summaries together.
 
 ## Important security notes
 - The PostgreSQL password in `docker-compose.yml` is for local development only. Do not use it in production.
@@ -59,7 +59,7 @@ Flyway applies the PostgreSQL schema migrations automatically. Hibernate validat
 ## Planned modules
 - `auth`: registration, login, password hashing and JWT (initial slice implemented)
 - `accounts`: financial accounts and balances for the dashboard (bank connections planned)
-- `transactions`: transaction history and dashboard spending summaries (management, search and categorization planned)
+- `transactions`: transaction history, manual income/expense entry and dashboard spending summaries (search planned)
 - `banking`: provider adapter and consent/synchronization flows
 - `analytics`: monthly summaries, budgets and savings rate
 - `ai`: transaction categorization and evidence-based financial Q&A
@@ -121,6 +121,12 @@ Abre `http://localhost:8080` no browser. Inicia sessão com:
 - **Palavra-passe:** `Demo123!Finance`
 
 O painel mostra património, rendimentos e despesas do mês, fluxo de caixa dos últimos seis meses, despesas por categoria, transações recentes e objetivos de poupança. Os valores fictícios são persistidos em PostgreSQL e a API só devolve os dados do utilizador autenticado.
+
+Usa **+ Receita** ou **+ Despesa** para registar um movimento. Preenche o valor, a descrição (por exemplo, salário, MB WAY ou presente de aniversário), a categoria, a conta e a data. A categoria pode ser escolhida das sugestões ou escrita livremente. O saldo e os indicadores do painel são atualizados depois de guardar. Numa conta sem contas financeiras, o primeiro movimento cria automaticamente uma **Conta principal** na moeda base do utilizador.
+
+O seletor no topo do dashboard permite ver o último mês, os últimos 3 ou 6 meses e o último ano. Em **Datas personalizadas**, escolhe as datas inicial e final e carrega em **Aplicar**; os totais, o gráfico, as categorias e as transações passam a corresponder ao intervalo escolhido. Os intervalos têm de ser válidos e não podem exceder cinco anos.
+
+Em **Objetivos**, carrega em **Criar objetivo** para definir o nome, o valor pretendido e, opcionalmente, uma data. **Adicionar dinheiro** aumenta o progresso e regista uma despesa na conta; **Retirar dinheiro** reduz o progresso e regista uma receita. Não é possível retirar mais do que o valor já guardado. **Eliminar** remove o objetivo, mas mantém no histórico da conta os movimentos que já foram registados.
 
 Para confirmar o estado técnico do serviço, abre `http://localhost:8080/api/v1/health` no browser ou executa `Invoke-RestMethod http://localhost:8080/actuator/health` numa segunda janela do PowerShell.
 

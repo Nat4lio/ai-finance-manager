@@ -82,6 +82,55 @@ class DashboardApiIntegrationTest {
         assertEquals(0, secondBody.get("goals").size());
     }
 
+    @Test
+    void dashboardFiltersAllTransactionSummariesByCustomDateRange() throws Exception {
+        String token = registerAndGetToken("dates@example.com");
+        UUID userId = users.findByEmailIgnoreCase("dates@example.com").orElseThrow().getId();
+        UUID accountId = UUID.randomUUID();
+        UUID expenseCategoryId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO financial_account (id, user_id, name, account_type, currency, current_balance)
+                VALUES (?, ?, 'Conta de datas', 'CHECKING', 'EUR', 30.00)
+                """, accountId, userId);
+        jdbc.update("""
+                INSERT INTO category (id, user_id, name, kind)
+                VALUES (?, ?, 'Compras', 'EXPENSE')
+                """, expenseCategoryId, userId);
+        jdbc.update("""
+                INSERT INTO financial_transaction
+                    (id, user_id, account_id, category_id, source, description, amount, currency, booked_at)
+                VALUES (?, ?, ?, ?, 'MANUAL', 'Dentro do período', -10.00, 'EUR', '2025-01-10')
+                """, UUID.randomUUID(), userId, accountId, expenseCategoryId);
+        jdbc.update("""
+                INSERT INTO financial_transaction
+                    (id, user_id, account_id, category_id, source, description, amount, currency, booked_at)
+                VALUES (?, ?, ?, ?, 'MANUAL', 'Fora do período', -20.00, 'EUR', '2025-01-11')
+                """, UUID.randomUUID(), userId, accountId, expenseCategoryId);
+
+        MvcResult result = mockMvc.perform(get("/api/v1/dashboard")
+                .queryParam("from", "2025-01-10")
+                .queryParam("to", "2025-01-10")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+            .andExpect(status().isOk())
+            .andReturn();
+        JsonNode body = objectMapper.readTree(result.getResponse().getContentAsString());
+
+        assertEquals(10, body.at("/summary/totalSpent").intValue());
+        assertEquals(1, body.get("transactions").size());
+        assertEquals("Dentro do período", body.at("/transactions/0/description").asText());
+        assertEquals(1, body.get("cashFlow").size());
+
+        mockMvc.perform(get("/api/v1/dashboard")
+                .queryParam("from", "2025-01-10")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+            .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/dashboard")
+                .queryParam("from", "2019-01-01")
+                .queryParam("to", "2025-01-02")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+            .andExpect(status().isBadRequest());
+    }
+
     private String registerAndGetToken(String email) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)

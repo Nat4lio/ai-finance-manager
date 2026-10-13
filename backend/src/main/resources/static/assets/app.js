@@ -11,6 +11,41 @@ const authError = document.querySelector("#auth-error");
 const loading = document.querySelector("#loading");
 const dashboardContent = document.querySelector("#dashboard-content");
 const dashboardError = document.querySelector("#dashboard-error");
+let activeRange = getPresetRange("6m");
+let selectedGoalId = null;
+let selectedGoalName = "";
+let goalMovementKind = "ADD";
+
+function dateInputValue(date) {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 10);
+}
+
+function getPresetRange(preset) {
+  const today = new Date();
+  let from;
+  let to = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  if (preset === "1m") {
+    from = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    to = new Date(today.getFullYear(), today.getMonth(), 0);
+  } else {
+    const months = preset === "3m" ? 3 : preset === "1y" ? 12 : 6;
+    from = new Date(today.getFullYear(), today.getMonth() - months + 1, 1);
+  }
+  return { from: dateInputValue(from), to: dateInputValue(to) };
+}
+
+function displayDate(date) {
+  return new Intl.DateTimeFormat("pt-PT", { day: "numeric", month: "short", year: "numeric" })
+    .format(new Date(`${date}T12:00:00`));
+}
+
+function currentPeriodCaption() {
+  if (document.querySelector("#period-select").value === "custom") {
+    return `${displayDate(activeRange.from)} – ${displayDate(activeRange.to)}`;
+  }
+  return document.querySelector("#period-select").selectedOptions[0].textContent;
+}
 
 function currency(value, code = "EUR", compact = false) {
   const key = `${code}-${compact}`;
@@ -90,7 +125,8 @@ async function signIn(email, password) {
 
 async function loadDashboard() {
   try {
-    const data = await request("/api/v1/dashboard");
+    const params = new URLSearchParams(activeRange);
+    const data = await request(`/api/v1/dashboard?${params}`);
     renderDashboard(data);
     loading.hidden = true;
     dashboardContent.hidden = false;
@@ -103,12 +139,15 @@ async function loadDashboard() {
 }
 
 function renderDashboard(data) {
-  const { summary, cashFlow, spending, transactions, goals } = data;
+  const { summary, accounts, cashFlow, spending, transactions, goals } = data;
   document.querySelector("#greeting").textContent = `Bom dia, ${summary.displayName.split(" ")[0]} 👋`;
   document.querySelector("#avatar").textContent = summary.displayName.trim().charAt(0).toUpperCase();
   document.querySelector("#net-worth").textContent = currency(summary.netWorth, summary.currency);
   document.querySelector("#monthly-income").textContent = currency(summary.monthlyIncome, summary.currency);
   document.querySelector("#total-spent").textContent = currency(summary.totalSpent, summary.currency);
+  document.querySelector("#income-period-label").textContent = `RENDIMENTOS · ${currentPeriodCaption().toLocaleUpperCase("pt-PT")}`;
+  document.querySelector("#expenses-period-label").textContent = `DESPESAS · ${currentPeriodCaption().toLocaleUpperCase("pt-PT")}`;
+  document.querySelector("#spending-period-caption").textContent = `Distribuição por categoria · ${currentPeriodCaption()}`;
   document.querySelector("#savings-rate").textContent = `${Number(summary.savingsRate).toLocaleString("pt-PT", { maximumFractionDigits: 1 })}%`;
   document.querySelector("#savings-target").replaceChildren(
     element("span", "metric-check", "↗"),
@@ -121,6 +160,34 @@ function renderDashboard(data) {
   renderTransactions(transactions, "#all-transactions");
   renderGoals(goals, "#goal-list-preview", 2, summary.currency);
   renderGoals(goals, "#all-goals", undefined, summary.currency);
+  renderAccountOptions(accounts, summary.currency);
+}
+
+function renderAccountOptions(accounts, defaultCurrency) {
+  const select = document.querySelector("#transaction-account");
+  const previousValue = select.value;
+  select.replaceChildren();
+  if (!accounts.length) {
+    const option = element("option", "", "Será criada uma conta principal");
+    option.value = "";
+    option.dataset.currency = defaultCurrency;
+    select.append(option);
+    updateTransactionCurrencyLabel();
+    return;
+  }
+  accounts.forEach(account => {
+    const option = element("option", "", `${account.name} · ${account.currency}`);
+    option.value = account.id;
+    option.dataset.currency = account.currency;
+    select.append(option);
+  });
+  if (accounts.some(account => account.id === previousValue)) select.value = previousValue;
+  updateTransactionCurrencyLabel();
+}
+
+function updateTransactionCurrencyLabel() {
+  const currencyCode = document.querySelector("#transaction-account").selectedOptions[0]?.dataset.currency || "EUR";
+  document.querySelector("#transaction-amount-label").textContent = `Valor (${currencyCode})`;
 }
 
 function renderCashFlow(months, code) {
@@ -182,12 +249,14 @@ function renderCashFlow(months, code) {
       }
     });
   }
+  const labelStep = Math.max(1, Math.ceil(months.length / 8));
   months.forEach((item, index) => {
+    if (index % labelStep !== 0 && index !== months.length - 1) return;
     const label = makeSvg("text", { x: x(index), y: 216, "text-anchor": "middle", class: "chart-axis-label" });
     label.textContent = item.month;
     svg.append(label);
   });
-  svg.setAttribute("aria-label", `Fluxo de caixa dos últimos ${months.length} meses. Rendimentos entre ${currency(Math.min(...months.map(m => Number(m.income))), code)} e ${currency(Math.max(...months.map(m => Number(m.income))), code)}.`);
+  svg.setAttribute("aria-label", `Fluxo de caixa de ${months.length} meses. Rendimentos entre ${currency(Math.min(...months.map(m => Number(m.income))), code)} e ${currency(Math.max(...months.map(m => Number(m.income))), code)}.`);
 }
 
 function renderSpending(categories, total, code) {
@@ -213,7 +282,7 @@ function renderSpending(categories, total, code) {
     row.append(label, element("span", "category-amount", `${Math.round(Number(category.percentage))}% · ${currency(category.amount, code, true)}`));
     legend.append(row);
   });
-  if (!categories.length) legend.append(element("p", "transaction-meta", "Ainda não há despesas registadas neste mês."));
+  if (!categories.length) legend.append(element("p", "transaction-meta", "Ainda não há despesas registadas neste período."));
 }
 
 function renderTransactions(transactions, selector, limit) {
@@ -264,11 +333,257 @@ function renderGoals(goals, selector, limit, code) {
     if (goal.targetDate) {
       foot.append(element("span", "", `Até ${new Intl.DateTimeFormat("pt-PT", { month: "short", year: "numeric" }).format(new Date(`${goal.targetDate}T12:00:00`))}`));
     }
-    item.append(top, track, foot);
+    const actions = element("div", "goal-actions");
+    for (const [action, label, className] of [
+      ["add", "Adicionar dinheiro", "goal-action-add"],
+      ["withdraw", "Retirar dinheiro", "goal-action-withdraw"],
+      ["delete", "Eliminar", "goal-action-delete"]
+    ]) {
+      const button = element("button", `goal-action ${className}`, label);
+      button.type = "button";
+      button.dataset.goalAction = action;
+      button.dataset.goalId = goal.id;
+      button.dataset.goalName = goal.name;
+      button.dataset.goalAmount = String(goal.currentAmount);
+      button.dataset.goalCurrency = goal.currency || code;
+      if (action === "withdraw") {
+        button.disabled = Number(goal.currentAmount) <= 0;
+        button.title = button.disabled ? "Este objetivo ainda não tem dinheiro para retirar." : "";
+      }
+      actions.append(button);
+    }
+    item.append(top, track, foot, actions);
     list.append(item);
   });
-  if (!rows.length) list.append(element("p", "transaction-meta", "Ainda não há objetivos de poupança."));
+  if (!rows.length) list.append(element("p", "transaction-meta", "Ainda não há objetivos. Cria o primeiro para começares a poupar."));
 }
+
+const goalDialog = document.querySelector("#goal-dialog");
+const goalForm = document.querySelector("#goal-form");
+const goalMovementDialog = document.querySelector("#goal-movement-dialog");
+const goalMovementForm = document.querySelector("#goal-movement-form");
+
+function openGoalDialog() {
+  goalForm.reset();
+  document.querySelector("#goal-form-error").hidden = true;
+  document.querySelector("#goal-name").focus();
+  goalDialog.showModal();
+}
+
+function openGoalMovement(goalId, name, amount, currencyCode, kind) {
+  selectedGoalId = goalId;
+  selectedGoalName = name;
+  goalMovementKind = kind;
+  const adding = kind === "ADD";
+  document.querySelector("#goal-movement-title").textContent = adding ? "Adicionar dinheiro" : "Retirar dinheiro";
+  document.querySelector("#goal-movement-description").textContent = `${name} · guardado: ${currency(amount, currencyCode)}`;
+  document.querySelector("#goal-movement-amount-label").textContent = `Valor (${currencyCode})`;
+  document.querySelector("#goal-movement-amount").value = "";
+  document.querySelector("#goal-movement-amount").max = adding ? "" : String(amount);
+  document.querySelector("#goal-movement-error").hidden = true;
+  document.querySelector("#save-goal-movement").textContent = adding ? "Adicionar ao objetivo" : "Retirar do objetivo";
+  goalMovementDialog.showModal();
+  document.querySelector("#goal-movement-amount").focus();
+}
+
+for (const buttonId of ["create-goal-preview", "create-goal-full"]) {
+  document.querySelector(`#${buttonId}`).addEventListener("click", openGoalDialog);
+}
+document.querySelector("#close-goal-dialog").addEventListener("click", () => goalDialog.close());
+document.querySelector("#cancel-goal").addEventListener("click", () => goalDialog.close());
+goalForm.addEventListener("submit", async event => {
+  event.preventDefault();
+  const error = document.querySelector("#goal-form-error");
+  const button = document.querySelector("#save-goal");
+  error.hidden = true;
+  button.disabled = true;
+  button.textContent = "A criar…";
+  const formData = new FormData(goalForm);
+  try {
+    await request("/api/v1/goals", {
+      method: "POST",
+      body: JSON.stringify({
+        name: String(formData.get("name")).trim(),
+        targetAmount: Number(formData.get("targetAmount")),
+        targetDate: formData.get("targetDate") || null
+      })
+    });
+    goalDialog.close();
+    await loadDashboard();
+  } catch (failure) {
+    error.textContent = failure.message;
+    error.hidden = false;
+  } finally {
+    button.disabled = false;
+    button.textContent = "Criar objetivo";
+  }
+});
+
+document.querySelector("#close-goal-movement-dialog").addEventListener("click", () => goalMovementDialog.close());
+document.querySelector("#cancel-goal-movement").addEventListener("click", () => goalMovementDialog.close());
+goalMovementForm.addEventListener("submit", async event => {
+  event.preventDefault();
+  const error = document.querySelector("#goal-movement-error");
+  const button = document.querySelector("#save-goal-movement");
+  error.hidden = true;
+  button.disabled = true;
+  button.textContent = "A guardar…";
+  const amount = Number(new FormData(goalMovementForm).get("amount"));
+  try {
+    await request(`/api/v1/goals/${encodeURIComponent(selectedGoalId)}/movements`, {
+      method: "POST",
+      body: JSON.stringify({ kind: goalMovementKind, amount })
+    });
+    goalMovementDialog.close();
+    await loadDashboard();
+  } catch (failure) {
+    error.textContent = failure.message;
+    error.hidden = false;
+  } finally {
+    button.disabled = false;
+    button.textContent = goalMovementKind === "ADD" ? "Adicionar ao objetivo" : "Retirar do objetivo";
+  }
+});
+
+for (const listSelector of ["#goal-list-preview", "#all-goals"]) {
+  document.querySelector(listSelector).addEventListener("click", async event => {
+    const button = event.target.closest("button[data-goal-action]");
+    if (!button) return;
+    const { goalAction, goalId, goalName, goalAmount, goalCurrency } = button.dataset;
+    if (goalAction === "add") {
+      openGoalMovement(goalId, goalName, goalAmount, goalCurrency, "ADD");
+      return;
+    }
+    if (goalAction === "withdraw") {
+      openGoalMovement(goalId, goalName, goalAmount, goalCurrency, "WITHDRAW");
+      return;
+    }
+    if (!window.confirm(`Queres eliminar o objetivo "${goalName}"? Os movimentos já registados não serão apagados.`)) return;
+    button.disabled = true;
+    try {
+      await request(`/api/v1/goals/${encodeURIComponent(goalId)}`, { method: "DELETE" });
+      await loadDashboard();
+    } catch (failure) {
+      dashboardError.textContent = failure.message;
+      dashboardError.hidden = false;
+    } finally {
+      button.disabled = false;
+    }
+  });
+}
+
+const transactionDialog = document.querySelector("#transaction-dialog");
+const transactionForm = document.querySelector("#transaction-form");
+const transactionFormError = document.querySelector("#transaction-form-error");
+let transactionKind = "INCOME";
+
+function openTransactionDialog(kind) {
+  transactionKind = kind;
+  const isIncome = kind === "INCOME";
+  const label = isIncome ? "receita" : "despesa";
+  document.querySelector("#transaction-kind-label").textContent = isIncome ? "NOVA RECEITA" : "NOVA DESPESA";
+  document.querySelector("#transaction-dialog-title").textContent = `Adicionar ${label}`;
+  document.querySelector("#save-transaction").textContent = `Guardar ${label}`;
+  document.querySelector("#transaction-category").value = "";
+  document.querySelector("#transaction-amount").value = "";
+  document.querySelector("#transaction-description").value = "";
+  document.querySelector("#transaction-date").value = localDateValue();
+  const categories = isIncome
+    ? ["Salário", "MB WAY", "Presente de aniversário", "Outros"]
+    : ["Casa", "Alimentação", "Transportes", "Saúde", "Lazer", "Outros"];
+  const suggestions = document.querySelector("#transaction-category-suggestions");
+  suggestions.replaceChildren(...categories.map(category => {
+    const option = element("option");
+    option.value = category;
+    return option;
+  }));
+  transactionFormError.hidden = true;
+  transactionFormError.textContent = "";
+  transactionDialog.showModal();
+  document.querySelector("#transaction-amount").focus();
+}
+
+function localDateValue() {
+  const now = new Date();
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 10);
+}
+
+document.querySelector("#period-from").max = localDateValue();
+document.querySelector("#period-to").max = localDateValue();
+document.querySelector("#goal-target-date").min = localDateValue();
+
+document.querySelector("#period-select").addEventListener("change", event => {
+  const custom = event.target.value === "custom";
+  const controls = document.querySelector("#custom-period-controls");
+  controls.hidden = !custom;
+  document.querySelector("#custom-period-error").hidden = true;
+  if (custom) {
+    document.querySelector("#period-from").value = activeRange.from;
+    document.querySelector("#period-to").value = activeRange.to;
+    return;
+  }
+  activeRange = getPresetRange(event.target.value);
+  loadDashboard();
+});
+
+document.querySelector("#apply-custom-period").addEventListener("click", () => {
+  const from = document.querySelector("#period-from").value;
+  const to = document.querySelector("#period-to").value;
+  const error = document.querySelector("#custom-period-error");
+  if (!from || !to || from > to) {
+    error.textContent = "Escolhe um intervalo válido: a data inicial deve ser anterior à data final.";
+    error.hidden = false;
+    return;
+  }
+  const [endYear, endMonth, endDay] = to.split("-").map(Number);
+  const earliestYear = endYear - 5;
+  const earliestDay = Math.min(endDay, new Date(earliestYear, endMonth, 0).getDate());
+  const earliestAllowed = `${earliestYear}-${String(endMonth).padStart(2, "0")}-${String(earliestDay).padStart(2, "0")}`;
+  if (from < earliestAllowed) {
+    error.textContent = "O intervalo personalizado não pode exceder cinco anos.";
+    error.hidden = false;
+    return;
+  }
+  error.hidden = true;
+  activeRange = { from, to };
+  loadDashboard();
+});
+
+document.querySelector("#add-income").addEventListener("click", () => openTransactionDialog("INCOME"));
+document.querySelector("#add-expense").addEventListener("click", () => openTransactionDialog("EXPENSE"));
+document.querySelector("#transaction-account").addEventListener("change", updateTransactionCurrencyLabel);
+document.querySelector("#close-transaction-dialog").addEventListener("click", () => transactionDialog.close());
+document.querySelector("#cancel-transaction").addEventListener("click", () => transactionDialog.close());
+transactionForm.addEventListener("submit", async event => {
+  event.preventDefault();
+  transactionFormError.hidden = true;
+  const saveButton = document.querySelector("#save-transaction");
+  saveButton.disabled = true;
+  saveButton.textContent = "A guardar…";
+  const formData = new FormData(transactionForm);
+  try {
+    await request("/api/v1/transactions", {
+      method: "POST",
+      body: JSON.stringify({
+        accountId: formData.get("accountId") || null,
+        kind: transactionKind,
+        description: String(formData.get("description")).trim(),
+        category: String(formData.get("category")).trim(),
+        amount: Number(formData.get("amount")),
+        date: formData.get("date")
+      })
+    });
+    transactionDialog.close();
+    await loadDashboard();
+  } catch (error) {
+    transactionFormError.textContent = error.message;
+    transactionFormError.hidden = false;
+  } finally {
+    saveButton.disabled = false;
+    saveButton.textContent = `Guardar ${transactionKind === "INCOME" ? "receita" : "despesa"}`;
+  }
+});
 
 authForm.addEventListener("submit", event => {
   event.preventDefault();

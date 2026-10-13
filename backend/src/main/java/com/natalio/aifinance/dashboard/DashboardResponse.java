@@ -3,9 +3,13 @@ package com.natalio.aifinance.dashboard;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 public record DashboardResponse(
+    LocalDate from,
+    LocalDate to,
     Summary summary,
+    List<AccountOption> accounts,
     List<CashFlowMonth> cashFlow,
     List<SpendingCategory> spending,
     List<TransactionItem> transactions,
@@ -20,6 +24,9 @@ public record DashboardResponse(
         BigDecimal savingsRate,
         BigDecimal savingsTarget
     ) {
+    }
+
+    public record AccountOption(UUID id, String name, String currency) {
     }
 
     public record CashFlowMonth(String month, BigDecimal income, BigDecimal expenses) {
@@ -40,6 +47,7 @@ public record DashboardResponse(
     }
 
     public record SavingsGoal(
+        UUID id,
         String name,
         BigDecimal currentAmount,
         BigDecimal targetAmount,

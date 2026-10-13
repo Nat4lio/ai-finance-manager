@@ -45,8 +45,9 @@ class SecurityIntegrationTest {
             .andExpect(status().isUnauthorized());
 
         String token = registerAndGetToken();
-        String tamperedToken = token.substring(0, token.length() - 1)
-            + (token.endsWith("a") ? "b" : "a");
+        String[] tokenParts = token.split("\\.");
+        tokenParts[2] = (tokenParts[2].startsWith("A") ? "B" : "A") + tokenParts[2].substring(1);
+        String tamperedToken = String.join(".", tokenParts);
 
         mockMvc.perform(get("/actuator/info")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + tamperedToken))

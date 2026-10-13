@@ -34,7 +34,18 @@ public class DashboardService {
     }
 
     @Transactional(readOnly = true)
-    public DashboardResponse getDashboard(UUID userId) {
+    public DashboardResponse getDashboard(UUID userId, LocalDate requestedFrom, LocalDate requestedTo) {
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        LocalDate rangeStart = requestedFrom == null && requestedTo == null
+            ? YearMonth.from(today).minusMonths(5).atDay(1)
+            : requestedFrom;
+        LocalDate rangeEnd = requestedTo == null && requestedFrom == null ? today : requestedTo;
+        if (rangeStart == null || rangeEnd == null || rangeStart.isAfter(rangeEnd)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A valid start and end date are required");
+        }
+        if (rangeStart.isBefore(rangeEnd.minusYears(5))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Date range cannot exceed five years");
+        }
         UserRow user = jdbc.query("""
                 SELECT display_name, rtrim(base_currency) AS currency
                 FROM app_user
@@ -44,13 +55,11 @@ public class DashboardService {
             userId
         ).stream().findFirst().orElseThrow(() ->
             new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
-
-        YearMonth currentMonth = YearMonth.now(ZoneOffset.UTC);
-        LocalDate rangeStart = currentMonth.minusMonths(5).atDay(1);
-        LocalDate rangeEnd = currentMonth.plusMonths(1).atDay(1);
         Map<YearMonth, MonthTotals> totalsByMonth = new LinkedHashMap<>();
-        for (int monthOffset = 5; monthOffset >= 0; monthOffset--) {
-            totalsByMonth.put(currentMonth.minusMonths(monthOffset), new MonthTotals());
+        YearMonth firstMonth = YearMonth.from(rangeStart);
+        YearMonth lastMonth = YearMonth.from(rangeEnd);
+        for (YearMonth month = firstMonth; !month.isAfter(lastMonth); month = month.plusMonths(1)) {
+            totalsByMonth.put(month, new MonthTotals());
         }
 
         jdbc.query("""
@@ -59,7 +68,7 @@ public class DashboardService {
                        SUM(ABS(t.amount)) AS amount
                 FROM financial_transaction t
                 LEFT JOIN category c ON c.id = t.category_id AND (c.user_id = t.user_id OR c.user_id IS NULL)
-                WHERE t.user_id = ? AND t.booked_at >= ? AND t.booked_at < ?
+                WHERE t.user_id = ? AND t.booked_at >= ? AND t.booked_at <= ?
                   AND c.kind IN ('INCOME', 'EXPENSE')
                 GROUP BY CAST(date_trunc('month', t.booked_at) AS DATE), c.kind
                 """,
@@ -79,31 +88,46 @@ public class DashboardService {
         );
 
         List<CashFlowMonth> cashFlow = new ArrayList<>();
+        boolean includeYear = firstMonth.until(lastMonth, java.time.temporal.ChronoUnit.MONTHS) >= 12;
         totalsByMonth.forEach((month, totals) -> cashFlow.add(new CashFlowMonth(
-            month.getMonth().getDisplayName(TextStyle.SHORT, Locale.forLanguageTag("pt-PT")),
+            month.getMonth().getDisplayName(TextStyle.SHORT, Locale.forLanguageTag("pt-PT"))
+                + (includeYear ? " " + String.valueOf(month.getYear()).substring(2) : ""),
             totals.income,
             totals.expenses
         )));
 
-        MonthTotals currentTotals = totalsByMonth.get(currentMonth);
+        MonthTotals periodTotals = totalsByMonth.values().stream().reduce(new MonthTotals(), MonthTotals::add);
+        List<DashboardResponse.AccountOption> accounts = jdbc.query("""
+                SELECT id, name, rtrim(currency) AS currency
+                FROM financial_account
+                WHERE user_id = ? AND is_active = true
+                ORDER BY created_at, name
+                """,
+            (result, rowNum) -> new DashboardResponse.AccountOption(
+                result.getObject("id", UUID.class),
+                result.getString("name"),
+                result.getString("currency")
+            ),
+            userId
+        );
         List<SpendingCategory> spending = jdbc.query("""
                 SELECT c.name, SUM(ABS(t.amount)) AS amount
                 FROM financial_transaction t
                 JOIN category c ON c.id = t.category_id
                 WHERE t.user_id = ? AND c.kind = 'EXPENSE'
-                  AND t.booked_at >= ? AND t.booked_at < ?
+                  AND t.booked_at >= ? AND t.booked_at <= ?
                 GROUP BY c.name
                 ORDER BY amount DESC
                 """,
             (result, rowNum) -> {
                 BigDecimal amount = result.getBigDecimal("amount");
-                BigDecimal percentage = currentTotals.expenses.signum() == 0
+                BigDecimal percentage = periodTotals.expenses.signum() == 0
                     ? ZERO
                     : amount.multiply(BigDecimal.valueOf(100))
-                        .divide(currentTotals.expenses, 1, RoundingMode.HALF_UP);
+                        .divide(periodTotals.expenses, 1, RoundingMode.HALF_UP);
                 return new SpendingCategory(result.getString("name"), amount, percentage);
             },
-            userId, currentMonth.atDay(1), currentMonth.plusMonths(1).atDay(1)
+            userId, rangeStart, rangeEnd
         );
 
         BigDecimal netWorth = jdbc.queryForObject("""
@@ -112,18 +136,18 @@ public class DashboardService {
                 WHERE user_id = ? AND is_active = true AND currency = ?
                 """, BigDecimal.class, userId, user.currency);
 
-        BigDecimal savingsRate = currentTotals.income.signum() == 0
+        BigDecimal savingsRate = periodTotals.income.signum() == 0
             ? ZERO
-            : currentTotals.income.subtract(currentTotals.expenses)
+            : periodTotals.income.subtract(periodTotals.expenses)
                 .multiply(BigDecimal.valueOf(100))
-                .divide(currentTotals.income, 1, RoundingMode.HALF_UP);
+                .divide(periodTotals.income, 1, RoundingMode.HALF_UP);
 
         List<TransactionItem> transactions = jdbc.query("""
                 SELECT t.description, t.merchant_name, c.name AS category, c.kind,
                        t.amount, rtrim(t.currency) AS currency, t.booked_at
                 FROM financial_transaction t
                 LEFT JOIN category c ON c.id = t.category_id AND (c.user_id = t.user_id OR c.user_id IS NULL)
-                WHERE t.user_id = ?
+                WHERE t.user_id = ? AND t.booked_at >= ? AND t.booked_at <= ?
                 ORDER BY t.booked_at DESC, t.created_at DESC
                 LIMIT 50
                 """,
@@ -136,16 +160,17 @@ public class DashboardService {
                 result.getString("currency"),
                 result.getDate("booked_at").toLocalDate()
             ),
-            userId
+            userId, rangeStart, rangeEnd
         );
 
         List<SavingsGoal> goals = jdbc.query("""
-                SELECT name, current_amount, target_amount, rtrim(currency) AS currency, target_date
+                SELECT id, name, current_amount, target_amount, rtrim(currency) AS currency, target_date
                 FROM savings_goal
                 WHERE user_id = ?
                 ORDER BY created_at
                 """,
             (result, rowNum) -> new SavingsGoal(
+                result.getObject("id", UUID.class),
                 result.getString("name"),
                 result.getBigDecimal("current_amount"),
                 result.getBigDecimal("target_amount"),
@@ -156,15 +181,18 @@ public class DashboardService {
         );
 
         return new DashboardResponse(
+            rangeStart,
+            rangeEnd,
             new Summary(
                 user.displayName,
                 user.currency,
                 netWorth,
-                currentTotals.income,
-                currentTotals.expenses,
+                periodTotals.income,
+                periodTotals.expenses,
                 savingsRate,
                 BigDecimal.valueOf(50)
             ),
+            accounts,
             cashFlow,
             spending,
             transactions,
@@ -178,5 +206,11 @@ public class DashboardService {
     private static final class MonthTotals {
         private BigDecimal income = ZERO;
         private BigDecimal expenses = ZERO;
+
+        private MonthTotals add(MonthTotals other) {
+            income = income.add(other.income);
+            expenses = expenses.add(other.expenses);
+            return this;
+        }
     }
 }

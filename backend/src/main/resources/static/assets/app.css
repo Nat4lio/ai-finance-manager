@@ -47,6 +47,13 @@ h1, h2, p { margin-top: 0; }
 .topbar h1 { margin: 0; font-size: clamp(21px, 2vw, 26px); font-weight: 700; letter-spacing: -.7px; }
 .topbar-meta { display: flex; align-items: center; gap: 15px; }
 .period-pill { display: inline-flex; align-items: center; gap: 8px; padding: 9px 12px; border: 1px solid var(--border); border-radius: 9px; color: #b7b8c9; font-size: 11px; }
+.period-controls { position: relative; display: grid; justify-items: end; gap: 6px; }
+.period-select, .custom-period-controls input { min-height: 36px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: #d5d6e1; font: inherit; font-size: 10px; }
+.custom-period-controls { display: flex; align-items: center; gap: 5px; color: var(--muted); }
+.custom-period-controls input { width: 125px; }
+.custom-period-controls .button { min-height: 36px; padding: 0 10px; font-size: 10px; }
+.period-error { position: absolute; z-index: 2; top: 100%; right: 0; width: min(330px, 90vw); margin: 4px 0 0; color: #ff9eac; font-size: 10px; line-height: 1.4; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; clip-path: inset(50%); border: 0; }
 .avatar { display: grid; width: 36px; height: 36px; place-items: center; border: 2px solid #34364b; border-radius: 50%; background: linear-gradient(145deg, #818cf8, #4f77dd); color: white; font-size: 13px; font-weight: 700; }
 .metrics-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 15px; }
 .metric-card, .panel { min-width: 0; border: 1px solid var(--border); border-radius: 13px; background: var(--panel); }
@@ -110,6 +117,13 @@ h1, h2, p { margin-top: 0; }
 .progress-track { height: 5px; overflow: hidden; border-radius: 9px; background: #28293b; }
 .progress-fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, #10c891, #30efb6); }
 .goal-foot { color: var(--muted); font-size: 9px; }
+.goal-heading-actions { display: flex; align-items: center; gap: 12px; }
+.goal-create-button { min-height: 34px; padding: 0 10px; font-size: 10px; white-space: nowrap; }
+.goal-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.goal-action { padding: 6px 8px; border: 1px solid #2a2b3d; border-radius: 7px; background: #171827; color: #c5c6d4; cursor: pointer; font-size: 9px; }
+.goal-action:hover { border-color: #12d6a077; color: #a9f4da; }
+.goal-action-delete:hover { border-color: #fb718566; color: #ffc4cd; }
+.goal-action:disabled { cursor: not-allowed; opacity: .5; }
 .full-panel { min-height: 280px; }
 .transaction-list-full .transaction-row { padding: 13px 2px; }
 .goal-list-full { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 20px; padding: 5px 2px 15px; }
@@ -139,6 +153,28 @@ h1, h2, p { margin-top: 0; }
 .form-error { margin: 3px 0 0; color: #ff8b9b; font-size: 11px; line-height: 1.5; }
 .auth-footnote { margin: 19px 0 0; color: #707185; font-size: 10px; line-height: 1.5; text-align: center; }
 
+.transaction-actions { display: flex; gap: 8px; }
+.transaction-actions .button { min-height: 36px; padding: 0 11px; font-size: 10px; white-space: nowrap; }
+.button-income { border: 1px solid #12d6a066; background: #102720; color: #a9f4da; }
+.button-income:hover { background: #173b30; }
+.button-expense { border: 1px solid #fb718566; background: #291820; color: #ffc4cd; }
+.button-expense:hover { background: #3a202a; }
+.button:disabled { cursor: not-allowed; opacity: .6; }
+.transaction-dialog { width: min(460px, calc(100% - 28px)); max-height: min(90vh, 680px); padding: 0; overflow: auto; border: 1px solid #303146; border-radius: 16px; background: var(--panel); color: var(--text); box-shadow: 0 28px 90px #000b; }
+.transaction-dialog::backdrop { background: #05060bc9; backdrop-filter: blur(4px); }
+.transaction-form { display: grid; gap: 9px; padding: 23px; }
+.transaction-form .panel-heading { align-items: flex-start; margin-bottom: 7px; }
+.transaction-form .eyebrow { margin: 0 0 5px; color: var(--green); }
+.transaction-form .panel-heading h2 { margin-bottom: 5px; font-size: 18px; }
+.transaction-form .panel-heading p:last-child { margin: 0; }
+.transaction-form label { margin-top: 4px; color: #c7c8d4; font-size: 11px; font-weight: 600; }
+.transaction-form input, .transaction-form select { width: 100%; min-height: 42px; padding: 0 12px; outline: none; border: 1px solid #2b2c3e; border-radius: 8px; background: #0d0e19; color: var(--text); font-size: 12px; }
+.transaction-form input:focus, .transaction-form select:focus { border-color: #18bd91; box-shadow: 0 0 0 3px #12d6a018; }
+.dialog-close { width: 32px; height: 32px; flex: 0 0 32px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: #aeb0c1; cursor: pointer; font-size: 21px; line-height: 1; }
+.dialog-close:hover { border-color: #fb718566; color: #ffc4cd; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 8px; }
+.dialog-actions .button { min-width: 115px; padding: 0 13px; }
+
 @media (min-width: 1450px) {
   .main-content { margin-right: auto; }
   .metrics-grid { gap: 17px; }.overview-grid { gap: 17px; }.metric-card { min-height: 126px; }
@@ -157,11 +193,18 @@ h1, h2, p { margin-top: 0; }
   .nav-link { min-height: 48px; flex-direction: column; justify-content: center; gap: 2px; padding: 3px; font-size: 9px; }
   .nav-icon { font-size: 16px; }
   .main-content { width: 100%; margin: 0; padding: 23px 17px 92px; }
-  .topbar { margin-bottom: 18px; }.topbar-meta { gap: 8px; }.period-pill { padding: 8px; font-size: 9px; }.avatar { width: 32px; height: 32px; }
+  .topbar { align-items: flex-start; margin-bottom: 18px; }.topbar-meta { flex-wrap: wrap; justify-content: flex-end; gap: 8px; }.period-pill { padding: 8px; font-size: 9px; }.avatar { width: 32px; height: 32px; }
+  .period-controls { width: 100%; }.period-select { max-width: 180px; }.custom-period-controls { flex-wrap: wrap; justify-content: flex-end; }.custom-period-controls input { width: 112px; min-height: 34px; }
+  .transaction-actions { width: 100%; justify-content: flex-end; }.transaction-actions .button { min-height: 34px; padding: 0 9px; }
   .metrics-grid { gap: 9px; margin-bottom: 10px; }.metric-card { min-height: 102px; padding: 13px; }.metric-value { font-size: clamp(18px, 5vw, 24px); }.metric-note { font-size: 9px; }
   .overview-grid { grid-template-columns: 1fr; gap: 10px; }.panel { padding: 15px; }.cashflow-panel, .spending-panel { min-height: unset; }.chart-wrap { height: 190px; }
   .chart-legend { flex-direction: column; gap: 5px; }.transactions-preview, .goals-preview { min-height: unset; }
+  .goal-heading-actions { flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
   .auth-card { padding: 26px 22px; }
+}
+@media (max-width: 430px) {
+  .period-pill { display: none; }.topbar-meta { max-width: 60%; }
+  .transaction-form { padding: 19px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
