@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: ai-finance-manager-api
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/aifinance}
+    username: ${DB_USERNAME:aifinance}
+    password: ${DB_PASSWORD:localdevpassword}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+  jackson:
+    time-zone: UTC
+server:
+  port: 8080
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
