@@ -21,8 +21,8 @@ public class AuthenticationConfig {
 
     @Bean
     UserDetailsService userDetailsService(AppUserRepository users) {
-        return email -> users.findByEmailIgnoreCase(email)
-            .map(user -> User.withUsername(user.getEmail())
+        return username -> users.findByUsernameIgnoreCase(username)
+            .map(user -> User.withUsername(user.getUsername())
                 .password(user.getPasswordHash())
                 .authorities("ROLE_USER")
                 .build())

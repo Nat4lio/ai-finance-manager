@@ -35,31 +35,31 @@ public class AuthService {
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
-        String email = normalizeEmail(request.email());
+        String username = normalizeUsername(request.username());
         ensureBcryptPasswordLength(request.password());
-        if (users.existsByEmailIgnoreCase(email)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "An account with this email already exists");
+        if (users.existsByUsernameIgnoreCase(username)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This username is already taken");
         }
 
-        AppUser user = new AppUser(email, passwordEncoder.encode(request.password()), request.displayName().trim());
+        AppUser user = new AppUser(username, passwordEncoder.encode(request.password()));
         try {
             user = users.saveAndFlush(user);
         } catch (DataIntegrityViolationException exception) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "An account with this email already exists");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This username is already taken");
         }
         return tokenFor(user);
     }
 
     public AuthResponse login(LoginRequest request) {
-        String email = normalizeEmail(request.email());
+        String username = normalizeUsername(request.username());
         ensureBcryptPasswordLength(request.password());
         try {
-            authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(email, request.password()));
+            authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(username, request.password()));
         } catch (AuthenticationException exception) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid username or password");
         }
-        AppUser user = users.findByEmailIgnoreCase(email)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password"));
+        AppUser user = users.findByUsernameIgnoreCase(username)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid username or password"));
         return tokenFor(user);
     }
 
@@ -67,8 +67,8 @@ public class AuthService {
         return new AuthResponse(jwtService.issueToken(user.getId()), "Bearer", jwtService.expiresInSeconds());
     }
 
-    private String normalizeEmail(String email) {
-        return email.trim().toLowerCase(Locale.ROOT);
+    private String normalizeUsername(String username) {
+        return username.trim().toLowerCase(Locale.ROOT);
     }
 
     private void ensureBcryptPasswordLength(String password) {

@@ -1,16 +1,9 @@
 package com.natalio.aifinance.goals;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.natalio.aifinance.user.AppUserRepository;
 import java.math.BigDecimal;
 import java.util.UUID;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,6 +15,13 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.natalio.aifinance.user.AppUserRepository;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -51,8 +51,8 @@ class GoalApiIntegrationTest {
                 .content(goalJson("Férias", "1000.00")))
             .andExpect(status().isUnauthorized());
 
-        String ownerToken = registerAndGetToken("owner@example.com");
-        String otherToken = registerAndGetToken("other@example.com");
+        String ownerToken = registerAndGetToken("owner_user");
+        String otherToken = registerAndGetToken("other_user");
 
         MvcResult createResult = mockMvc.perform(post("/api/v1/goals")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
@@ -73,7 +73,7 @@ class GoalApiIntegrationTest {
                     """))
             .andExpect(status().isOk());
 
-        UUID ownerId = users.findByEmailIgnoreCase("owner@example.com").orElseThrow().getId();
+        UUID ownerId = users.findByUsernameIgnoreCase("owner_user").orElseThrow().getId();
         UUID accountId = jdbc.queryForObject(
             "SELECT id FROM financial_account WHERE user_id = ?",
             UUID.class,
@@ -150,7 +150,7 @@ class GoalApiIntegrationTest {
 
     @Test
     void deletingGoalMovementRestoresGoalAndAccountAndRejectsNegativeGoalBalance() throws Exception {
-        String token = registerAndGetToken("goal-movements@example.com");
+        String token = registerAndGetToken("goal_movements");
         MvcResult createResult = mockMvc.perform(post("/api/v1/goals")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -168,7 +168,7 @@ class GoalApiIntegrationTest {
                     """))
             .andExpect(status().isOk());
 
-        UUID userId = users.findByEmailIgnoreCase("goal-movements@example.com").orElseThrow().getId();
+        UUID userId = users.findByUsernameIgnoreCase("goal_movements").orElseThrow().getId();
         UUID contributionId = jdbc.queryForObject(
             "SELECT id FROM financial_transaction WHERE user_id = ?",
             UUID.class,
@@ -226,12 +226,12 @@ class GoalApiIntegrationTest {
         ).compareTo(BigDecimal.ZERO));
     }
 
-    private String registerAndGetToken(String email) throws Exception {
+    private String registerAndGetToken(String username) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                    {"email":"%s","password":"A-long-password-123","displayName":"Ana"}
-                    """.formatted(email)))
+                    {"username":"%s","password":"A-long-password-123"}
+                    """.formatted(username)))
             .andExpect(status().isCreated())
             .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString()).get("accessToken").asText();

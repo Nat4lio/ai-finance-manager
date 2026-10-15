@@ -1,6 +1,22 @@
 package com.natalio.aifinance.dashboard;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.util.UUID;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -8,21 +24,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.natalio.aifinance.user.AppUserRepository;
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.ZoneOffset;
-import java.util.UUID;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -50,8 +51,8 @@ class DashboardApiIntegrationTest {
         mockMvc.perform(get("/api/v1/dashboard"))
             .andExpect(status().isUnauthorized());
 
-        String firstToken = registerAndGetToken("first@example.com");
-        UUID firstUserId = users.findByEmailIgnoreCase("first@example.com").orElseThrow().getId();
+        String firstToken = registerAndGetToken("first_user");
+        UUID firstUserId = users.findByUsernameIgnoreCase("first_user").orElseThrow().getId();
         addFinancialData(firstUserId, "Conta da Ana", "Alimentação", "Supermercado", "Casa");
 
         MvcResult firstDashboard = mockMvc.perform(get("/api/v1/dashboard")
@@ -60,7 +61,7 @@ class DashboardApiIntegrationTest {
             .andReturn();
         JsonNode firstBody = objectMapper.readTree(firstDashboard.getResponse().getContentAsString());
 
-        assertEquals("Ana", firstBody.at("/summary/displayName").asText());
+        assertEquals("first_user", firstBody.at("/summary/displayName").asText());
         assertEquals(6, firstBody.get("cashFlow").size());
         assertEquals(0, firstBody.at("/summary/netWorth").decimalValue().compareTo(new BigDecimal("2500.00")));
         assertEquals(300, firstBody.at("/summary/monthlyIncome").intValue());
@@ -69,7 +70,7 @@ class DashboardApiIntegrationTest {
         assertEquals(2, firstBody.get("transactions").size());
         assertEquals("Casa", firstBody.at("/goals/0/name").asText());
 
-        String secondToken = registerAndGetToken("second@example.com");
+        String secondToken = registerAndGetToken("second_user");
         MvcResult secondDashboard = mockMvc.perform(get("/api/v1/dashboard")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + secondToken))
             .andExpect(status().isOk())
@@ -84,8 +85,8 @@ class DashboardApiIntegrationTest {
 
     @Test
     void dashboardFiltersAllTransactionSummariesByCustomDateRange() throws Exception {
-        String token = registerAndGetToken("dates@example.com");
-        UUID userId = users.findByEmailIgnoreCase("dates@example.com").orElseThrow().getId();
+        String token = registerAndGetToken("dates_user");
+        UUID userId = users.findByUsernameIgnoreCase("dates_user").orElseThrow().getId();
         UUID accountId = UUID.randomUUID();
         UUID expenseCategoryId = UUID.randomUUID();
         jdbc.update("""
@@ -131,12 +132,12 @@ class DashboardApiIntegrationTest {
             .andExpect(status().isBadRequest());
     }
 
-    private String registerAndGetToken(String email) throws Exception {
+    private String registerAndGetToken(String username) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                    {"email":"%s","password":"A-long-password-123","displayName":"Ana"}
-                    """.formatted(email)))
+                    {"username":"%s","password":"A-long-password-123"}
+                    """.formatted(username)))
             .andExpect(status().isCreated())
             .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString()).get("accessToken").asText();

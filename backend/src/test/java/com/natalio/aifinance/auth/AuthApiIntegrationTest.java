@@ -1,12 +1,7 @@
 package com.natalio.aifinance.auth;
 
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.emptyString;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-import com.natalio.aifinance.user.AppUserRepository;
+import static org.hamcrest.Matchers.not;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,6 +10,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.natalio.aifinance.user.AppUserRepository;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -32,11 +32,11 @@ class AuthApiIntegrationTest {
     }
 
     @Test
-    void registrationPersistsUserAndAllowsCaseInsensitiveLogin() throws Exception {
+    void registrationPersistsUsernameAndAllowsCaseInsensitiveLogin() throws Exception {
         mockMvc.perform(post("/api/v1/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                    {"email":"Person@example.com","password":"A-long-password-123","displayName":"Person"}
+                    {"username":"Person_01","password":"A-long-password-123"}
                     """))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.accessToken", not(emptyString())))
@@ -44,13 +44,15 @@ class AuthApiIntegrationTest {
             .andExpect(jsonPath("$.expiresIn").value(900));
 
         org.junit.jupiter.api.Assertions.assertEquals(1, users.count());
-        org.junit.jupiter.api.Assertions.assertEquals("person@example.com",
-            users.findByEmailIgnoreCase("PERSON@example.com").orElseThrow().getEmail());
+        org.junit.jupiter.api.Assertions.assertEquals("person_01",
+            users.findByUsernameIgnoreCase("PERSON_01").orElseThrow().getUsername());
+        org.junit.jupiter.api.Assertions.assertEquals("person_01",
+            users.findByUsernameIgnoreCase("person_01").orElseThrow().getDisplayName());
 
         mockMvc.perform(post("/api/v1/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                    {"email":"PERSON@EXAMPLE.COM","password":"A-long-password-123"}
+                    {"username":"PERSON_01","password":"A-long-password-123"}
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.accessToken", not(emptyString())))
@@ -58,13 +60,13 @@ class AuthApiIntegrationTest {
     }
 
     @Test
-    void registrationRejectsEmailDuplicatesRegardlessOfCase() throws Exception {
-        register("person@example.com");
+    void registrationRejectsUsernameDuplicatesRegardlessOfCase() throws Exception {
+        register("person_01");
 
         mockMvc.perform(post("/api/v1/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                    {"email":"PERSON@EXAMPLE.COM","password":"A-long-password-123","displayName":"Person"}
+                    {"username":"PERSON_01","password":"A-long-password-123"}
                     """))
             .andExpect(status().isConflict());
 
@@ -76,8 +78,15 @@ class AuthApiIntegrationTest {
         mockMvc.perform(post("/api/v1/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                    {"email":"not-an-email","password":"short","displayName":" "}
+                    {"username":"invalid name!","password":"short"}
                     """))
+            .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post("/api/v1/auth/register")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("""
+                {"username":"ab","password":"A-long-password-123"}
+                """))
             .andExpect(status().isBadRequest());
 
         mockMvc.perform(post("/api/v1/auth/register")
@@ -89,7 +98,7 @@ class AuthApiIntegrationTest {
         mockMvc.perform(post("/api/v1/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                    {"email":"person@example.com","password":"éééééééééééééééééééééééééééééééééééééé","displayName":"Person"}
+                    {"username":"person_01","password":"éééééééééééééééééééééééééééééééééééééé"}
                     """))
             .andExpect(status().isBadRequest());
 
@@ -98,31 +107,31 @@ class AuthApiIntegrationTest {
 
     @Test
     void loginRejectsWrongAndUnknownCredentialsWithoutRevealingWhichFailed() throws Exception {
-        register("person@example.com");
+        register("person_01");
 
         mockMvc.perform(post("/api/v1/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                    {"email":"person@example.com","password":"incorrect-password"}
+                    {"username":"person_01","password":"incorrect-password"}
                     """))
             .andExpect(status().isUnauthorized())
-            .andExpect(jsonPath("$.message").value("Invalid email or password"));
+            .andExpect(jsonPath("$.message").value("Invalid username or password"));
 
         mockMvc.perform(post("/api/v1/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                    {"email":"unknown@example.com","password":"incorrect-password"}
+                    {"username":"unknown_user","password":"incorrect-password"}
                     """))
             .andExpect(status().isUnauthorized())
-            .andExpect(jsonPath("$.message").value("Invalid email or password"));
+            .andExpect(jsonPath("$.message").value("Invalid username or password"));
     }
 
-    private void register(String email) throws Exception {
+    private void register(String username) throws Exception {
         mockMvc.perform(post("/api/v1/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                    {"email":"%s","password":"A-long-password-123","displayName":"Person"}
-                    """.formatted(email)))
+                    {"username":"%s","password":"A-long-password-123"}
+                    """.formatted(username)))
             .andExpect(status().isCreated());
     }
 }

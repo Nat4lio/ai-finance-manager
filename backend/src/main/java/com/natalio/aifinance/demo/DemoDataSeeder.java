@@ -1,7 +1,5 @@
 package com.natalio.aifinance.demo;
 
-import com.natalio.aifinance.user.AppUser;
-import com.natalio.aifinance.user.AppUserRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
@@ -9,6 +7,7 @@ import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -17,10 +16,13 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.natalio.aifinance.user.AppUser;
+import com.natalio.aifinance.user.AppUserRepository;
+
 @Component
 @ConditionalOnProperty(name = "app.demo.enabled", havingValue = "true")
 public class DemoDataSeeder implements ApplicationRunner {
-    public static final String DEMO_EMAIL = "demo@example.com";
+    public static final String DEMO_USERNAME = "demo";
     public static final String DEMO_PASSWORD = "Demo123!Finance";
 
     private final AppUserRepository users;
@@ -36,8 +38,8 @@ public class DemoDataSeeder implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        AppUser user = users.findByEmailIgnoreCase(DEMO_EMAIL).orElseGet(() ->
-            users.saveAndFlush(new AppUser(DEMO_EMAIL, passwordEncoder.encode(DEMO_PASSWORD), "Alex Morgan")));
+        AppUser user = users.findByUsernameIgnoreCase(DEMO_USERNAME).orElseGet(() ->
+            users.saveAndFlush(new AppUser(DEMO_USERNAME, passwordEncoder.encode(DEMO_PASSWORD))));
         if (jdbc.queryForObject("SELECT COUNT(*) FROM financial_account WHERE user_id = ?", Integer.class, user.getId()) > 0) {
             return;
         }

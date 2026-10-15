@@ -40,11 +40,11 @@ class AuthServiceTest {
     }
 
     @Test
-    void registerRejectsExistingEmailWithoutEncodingPassword() {
-        when(users.existsByEmailIgnoreCase("person@example.com")).thenReturn(true);
+    void registerRejectsExistingUsernameWithoutEncodingPassword() {
+        when(users.existsByUsernameIgnoreCase("person")).thenReturn(true);
 
         ResponseStatusException exception = assertThrows(ResponseStatusException.class,
-            () -> authService.register(new RegisterRequest(" Person@Example.com ", "A-long-password-123", "Person")));
+            () -> authService.register(new RegisterRequest(" Person ", "A-long-password-123")));
 
         assertEquals(HttpStatus.CONFLICT, exception.getStatusCode());
         verify(passwordEncoder, never()).encode("A-long-password-123");
@@ -57,11 +57,11 @@ class AuthServiceTest {
             .thenThrow(new BadCredentialsException("invalid credentials"));
 
         ResponseStatusException exception = assertThrows(ResponseStatusException.class,
-            () -> authService.login(new LoginRequest(" Person@Example.com ", "incorrect-password")));
+            () -> authService.login(new LoginRequest(" Person ", "incorrect-password")));
 
         assertEquals(HttpStatus.UNAUTHORIZED, exception.getStatusCode());
-        assertEquals("Invalid email or password", exception.getReason());
-        verify(users, never()).findByEmailIgnoreCase("person@example.com");
+        assertEquals("Invalid username or password", exception.getReason());
+        verify(users, never()).findByUsernameIgnoreCase("person");
     }
 
     @Test
@@ -69,9 +69,9 @@ class AuthServiceTest {
         String multibytePassword = "é".repeat(37);
 
         ResponseStatusException exception = assertThrows(ResponseStatusException.class,
-            () -> authService.register(new RegisterRequest("person@example.com", multibytePassword, "Person")));
+            () -> authService.register(new RegisterRequest("person", multibytePassword)));
 
         assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
-        verify(users, never()).existsByEmailIgnoreCase("person@example.com");
+        verify(users, never()).existsByUsernameIgnoreCase("person");
     }
 }

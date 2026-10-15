@@ -20,15 +20,24 @@
       <h1 id="auth-title">Bem-vindo de volta</h1>
       <p class="auth-intro">Entra para acompanhar o teu dinheiro num só lugar.</p>
       <form id="login-form" class="auth-form">
-        <label for="email">Email</label>
-        <input id="email" name="email" type="email" autocomplete="username" required value="demo@example.com">
+        <label for="username">Nome de utilizador</label>
+        <input id="username" name="username" type="text" autocomplete="username" minlength="3" maxlength="64" pattern="[A-Za-z0-9][A-Za-z0-9._\x2d]{2,63}" autocapitalize="none" spellcheck="false" required>
         <label for="password">Palavra-passe</label>
-        <input id="password" name="password" type="password" autocomplete="current-password" required value="Demo123!Finance">
-        <p id="auth-error" class="form-error" role="alert" hidden></p>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
         <button class="button button-primary auth-submit" type="submit">Entrar no painel <span aria-hidden="true">→</span></button>
       </form>
-      <button id="demo-login" class="button button-quiet demo-button" type="button">Entrar como utilizador de demonstração</button>
-      <p class="auth-footnote">Os dados apresentados são fictícios e destinam-se apenas a demonstração.</p>
+      <form id="register-form" class="auth-form" hidden>
+        <label for="register-username">Nome de utilizador</label>
+        <input id="register-username" name="username" type="text" autocomplete="username" minlength="3" maxlength="64" pattern="[A-Za-z0-9][A-Za-z0-9._\x2d]{2,63}" autocapitalize="none" spellcheck="false" required>
+        <label for="register-password">Palavra-passe (mínimo 12 caracteres)</label>
+        <input id="register-password" name="password" type="password" autocomplete="new-password" minlength="12" maxlength="72" required>
+        <label for="register-password-confirm">Confirmar palavra-passe</label>
+        <input id="register-password-confirm" name="passwordConfirm" type="password" autocomplete="new-password" minlength="12" maxlength="72" required>
+        <button class="button button-primary auth-submit" type="submit">Criar conta</button>
+      </form>
+      <p id="auth-error" class="form-error" role="alert" hidden></p>
+      <button id="create-account" class="button button-quiet auth-secondary" type="button">Criar conta</button>
+      <button id="back-to-login" class="button button-quiet auth-secondary" type="button" hidden>Já tenho conta</button>
     </section>
   </main>
 

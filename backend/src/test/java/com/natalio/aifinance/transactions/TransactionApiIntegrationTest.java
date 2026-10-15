@@ -1,19 +1,12 @@
 package com.natalio.aifinance.transactions;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.natalio.aifinance.user.AppUserRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.UUID;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +18,14 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.natalio.aifinance.user.AppUserRepository;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -54,7 +55,7 @@ class TransactionApiIntegrationTest {
                 .content(transactionJson(null, "INCOME", "Salário de outubro", "Salário", "125.50")))
             .andExpect(status().isUnauthorized());
 
-        String token = registerAndGetToken("ana@example.com");
+        String token = registerAndGetToken("ana_user");
         MvcResult incomeResult = mockMvc.perform(post("/api/v1/transactions")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -67,7 +68,7 @@ class TransactionApiIntegrationTest {
         assertEquals("INCOME", income.get("kind").asText());
         assertEquals(0, income.get("amount").decimalValue().compareTo(new BigDecimal("125.50")));
 
-        UUID userId = users.findByEmailIgnoreCase("ana@example.com").orElseThrow().getId();
+        UUID userId = users.findByUsernameIgnoreCase("ana_user").orElseThrow().getId();
         UUID accountId = jdbc.queryForObject(
             "SELECT id FROM financial_account WHERE user_id = ?",
             UUID.class,
@@ -100,11 +101,11 @@ class TransactionApiIntegrationTest {
 
     @Test
     void rejectsInvalidAmountAndAnAccountOwnedByAnotherUser() throws Exception {
-        String firstToken = registerAndGetToken("first@example.com");
-        String secondToken = registerAndGetToken("second@example.com");
-        UUID firstUserId = users.findByEmailIgnoreCase("first@example.com").orElseThrow().getId();
+        String firstToken = registerAndGetToken("first_user");
+        String secondToken = registerAndGetToken("second_user");
+        UUID firstUserId = users.findByUsernameIgnoreCase("first_user").orElseThrow().getId();
         UUID otherAccountId = insertAccount(firstUserId);
-        UUID secondUserId = users.findByEmailIgnoreCase("second@example.com").orElseThrow().getId();
+        UUID secondUserId = users.findByUsernameIgnoreCase("second_user").orElseThrow().getId();
 
         mockMvc.perform(post("/api/v1/transactions")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + secondToken)
@@ -132,8 +133,8 @@ class TransactionApiIntegrationTest {
 
     @Test
     void deletingTransactionReversesAccountBalanceAndIsRestrictedToItsOwner() throws Exception {
-        String ownerToken = registerAndGetToken("transaction-owner@example.com");
-        String otherToken = registerAndGetToken("transaction-other@example.com");
+        String ownerToken = registerAndGetToken("transaction_owner");
+        String otherToken = registerAndGetToken("transaction_other");
 
         MvcResult incomeResult = mockMvc.perform(post("/api/v1/transactions")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + ownerToken)
@@ -144,7 +145,7 @@ class TransactionApiIntegrationTest {
         UUID incomeId = UUID.fromString(objectMapper.readTree(incomeResult.getResponse().getContentAsString())
             .get("id").asText());
 
-        UUID userId = users.findByEmailIgnoreCase("transaction-owner@example.com").orElseThrow().getId();
+        UUID userId = users.findByUsernameIgnoreCase("transaction_owner").orElseThrow().getId();
         UUID accountId = jdbc.queryForObject(
             "SELECT id FROM financial_account WHERE user_id = ?",
             UUID.class,
@@ -216,12 +217,12 @@ class TransactionApiIntegrationTest {
         ));
     }
 
-    private String registerAndGetToken(String email) throws Exception {
+    private String registerAndGetToken(String username) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/v1/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                    {"email":"%s","password":"A-long-password-123","displayName":"Ana"}
-                    """.formatted(email)))
+                    {"username":"%s","password":"A-long-password-123"}
+                    """.formatted(username)))
             .andExpect(status().isCreated())
             .andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString()).get("accessToken").asText();

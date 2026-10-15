@@ -20,8 +20,8 @@ public class AppUser {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(nullable = false, length = 320)
-    private String email;
+    @Column(nullable = false, length = 64)
+    private String username;
 
     @Column(name = "password_hash", nullable = false, length = 255)
     private String passwordHash;
@@ -42,10 +42,10 @@ public class AppUser {
     protected AppUser() {
     }
 
-    public AppUser(String email, String passwordHash, String displayName) {
-        this.email = email;
+    public AppUser(String username, String passwordHash) {
+        this.username = username;
         this.passwordHash = passwordHash;
-        this.displayName = displayName;
+        this.displayName = username;
     }
 
     @PrePersist
@@ -64,8 +64,8 @@ public class AppUser {
         return id;
     }
 
-    public String getEmail() {
-        return email;
+    public String getUsername() {
+        return username;
     }
 
     public String getPasswordHash() {

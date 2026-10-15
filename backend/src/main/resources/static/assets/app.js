@@ -1,4 +1,3 @@
-const DEMO_ACCOUNT = { email: "demo@example.com", password: "Demo123!Finance" };
 const TOKEN_KEY = "vault.access-token";
 const COLORS = ["#5498ff", "#12d6a0", "#aa84ff", "#f4c95d", "#fb7185", "#f3985b"];
 const ICONS = { INCOME: "↗", EXPENSE: "↘" };
@@ -7,6 +6,7 @@ const moneyFormatters = new Map();
 const authScreen = document.querySelector("#auth-screen");
 const appShell = document.querySelector("#app-shell");
 const authForm = document.querySelector("#login-form");
+const registerForm = document.querySelector("#register-form");
 const authError = document.querySelector("#auth-error");
 const loading = document.querySelector("#loading");
 const dashboardContent = document.querySelector("#dashboard-content");
@@ -85,12 +85,34 @@ async function request(path, options = {}) {
 }
 
 function showLogin(message = "") {
+  document.querySelector("#auth-title").textContent = "Bem-vindo de volta";
+  document.querySelector(".auth-intro").textContent = "Entra para acompanhar o teu dinheiro num só lugar.";
+  authForm.hidden = false;
+  registerForm.hidden = true;
+  document.querySelector("#create-account").hidden = false;
+  document.querySelector("#back-to-login").hidden = true;
   authScreen.hidden = false;
   appShell.hidden = true;
   authError.textContent = message;
   authError.hidden = !message;
   dashboardContent.hidden = true;
   loading.hidden = false;
+}
+
+function showRegister(message = "") {
+  document.querySelector("#auth-title").textContent = "Criar conta";
+  document.querySelector(".auth-intro").textContent = "Escolhe um nome de utilizador e uma palavra-passe segura.";
+  authForm.hidden = true;
+  registerForm.hidden = false;
+  document.querySelector("#create-account").hidden = true;
+  document.querySelector("#back-to-login").hidden = false;
+  authError.textContent = message;
+  authError.hidden = !message;
+  authScreen.hidden = false;
+  appShell.hidden = true;
+  dashboardContent.hidden = true;
+  loading.hidden = true;
+  registerForm.querySelector('[name="username"]').focus();
 }
 
 function showDashboard() {
@@ -102,7 +124,7 @@ function showDashboard() {
   loadDashboard();
 }
 
-async function signIn(email, password) {
+async function signIn(username, password) {
   authError.hidden = true;
   const button = authForm.querySelector('button[type="submit"]');
   button.disabled = true;
@@ -110,7 +132,7 @@ async function signIn(email, password) {
   try {
     const result = await request("/api/v1/auth/login", {
       method: "POST",
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify({ username, password })
     });
     sessionStorage.setItem(TOKEN_KEY, result.accessToken);
     showDashboard();
@@ -513,8 +535,8 @@ function openTransactionDialog(kind) {
   document.querySelector("#transaction-description").value = "";
   document.querySelector("#transaction-date").value = localDateValue();
   const categories = isIncome
-    ? ["Salário", "MB WAY", "Presente de aniversário", "Outros"]
-    : ["Casa", "Alimentação", "Transportes", "Saúde", "Lazer", "Outros"];
+    ? ["Salário", "Investimento", "Pagamento", "MB WAY", "Presente de aniversário", "Outros"]
+    : ["Casa", "Alimentação", "Transportes", "Saúde", "Lazer", "Investimentos", "Outros"];
   const suggestions = document.querySelector("#transaction-category-suggestions");
   suggestions.replaceChildren(...categories.map(category => {
     const option = element("option");
@@ -612,13 +634,43 @@ transactionForm.addEventListener("submit", async event => {
 authForm.addEventListener("submit", event => {
   event.preventDefault();
   const formData = new FormData(authForm);
-  signIn(String(formData.get("email")).trim(), String(formData.get("password")));
+  signIn(String(formData.get("username")).trim(), String(formData.get("password")));
 });
 
-document.querySelector("#demo-login").addEventListener("click", () => {
-  document.querySelector("#email").value = DEMO_ACCOUNT.email;
-  document.querySelector("#password").value = DEMO_ACCOUNT.password;
-  signIn(DEMO_ACCOUNT.email, DEMO_ACCOUNT.password);
+document.querySelector("#create-account").addEventListener("click", () => showRegister());
+document.querySelector("#back-to-login").addEventListener("click", () => showLogin());
+
+registerForm.addEventListener("submit", async event => {
+  event.preventDefault();
+  const formData = new FormData(registerForm);
+  const username = String(formData.get("username")).trim();
+  const password = String(formData.get("password"));
+  if (password !== String(formData.get("passwordConfirm"))) {
+    showRegister("As palavras-passe não coincidem.");
+    return;
+  }
+
+  const button = registerForm.querySelector('button[type="submit"]');
+  button.disabled = true;
+  button.textContent = "A criar conta…";
+  authError.hidden = true;
+  try {
+    const result = await request("/api/v1/auth/register", {
+      method: "POST",
+      body: JSON.stringify({
+        username,
+        password
+      })
+    });
+    sessionStorage.setItem(TOKEN_KEY, result.accessToken);
+    showDashboard();
+  } catch (error) {
+    authError.textContent = error.message;
+    authError.hidden = false;
+  } finally {
+    button.disabled = false;
+    button.textContent = "Criar conta";
+  }
 });
 
 document.querySelector("#logout").addEventListener("click", () => {
